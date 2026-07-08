@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "facevision"
+version = "1.0.0"
+description = "Real-time face recognition library: detection, embedding, tracking and matching."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [
+    { name = "AllenDeng" },
+]
+keywords = ["face-recognition", "insightface", "retinaface", "arcface", "computer-vision"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "opencv-python>=4.8.0",
+    "insightface>=0.7.3",
+    "onnxruntime>=1.18.0",
+    "numpy>=1.24.0",
+    "Pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+gpu-win = ["onnxruntime-directml>=1.24.0"]
+gpu-linux = ["onnxruntime-gpu>=1.18.0"]
+dev = ["pytest>=7.0", "build>=0.10", "twine>=4.0"]
+
+[project.urls]
+Homepage = "https://github.com/allen902/FaceVision"
+Documentation = "https://allen902.github.io/FaceVision"
+Repository = "https://github.com/allen902/FaceVision"
+Issues = "https://github.com/allen902/FaceVision/issues"
+
+[tool.setuptools.packages.find]
+include = ["face_vision*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
