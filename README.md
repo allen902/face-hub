@@ -4,8 +4,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-
-FaceVision extracts the core face-recognition algorithms from the original `d:\FaceVision` PyQt6 desktop app into a clean, GUI-free Python library.
+[![Tests](https://github.com/allen902/face_vision/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face_vision/actions/workflows/publish.yml)
 
 ## Features
 
@@ -108,8 +107,6 @@ The FaceVision **code** is released under the [MIT License](LICENSE).
 # FaceVision（中文）
 
 > 实时人脸识别库 — 检测、特征提取、追踪、匹配。
-
-FaceVision 将原 `d:\FaceVision` PyQt6 桌面应用中的核心算法提取为无 GUI 的纯 Python 库。
 
 ## 特性
 

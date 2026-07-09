@@ -1,8 +1,7 @@
 # FaceVision v1.0 — 新仓库实施计划
 
-> **目标：** 从现有 `d:\FaceVision` 单体 PyQt6 应用中提取核心算法，在新仓库中构建纯 Python 库。
+> **目标：** 在新仓库中构建纯 Python 库。
 > - **新仓库名：** `FaceVision`（也是主包名）
-> - **旧仓库 `d:FaceVision` 桌面应用保留，后续适配 `from face_vision import ...`
 > - **原则：** 保留所有核心算法，移除 GUI 依赖，所有配置通过 `__init__` 参数传入，`print`→`logging`，返回值用 `dataclass`
 
 ---
@@ -65,22 +64,19 @@ FaceVision/                              # Git 仓库根目录（项目名）
 
 **包结构（单一顶层包 `FaceVision`，`engine/` 为算法子包）：**
 - `face_vision/` — 主包，用户唯一入口。`__init__.py` re-export 全部公开 API
-- `face_vision/engine/` — 算法引擎子包，包含全部从旧项目迁移的核心模块
-- 内部导入关系：
+- `face_vision/engine/` — 算法引擎子包，包含全部核心模块
+
+---
+
+## 二、`face_vision/engine/` — 核心算法引擎
+
+内部导入关系：
   - `face_vision/engine/face_detector.py` → `from face_vision.types import ...` / `from face_vision.exceptions import ...`
   - `face_vision/engine/face_recognizer.py` → `from face_vision.types import UNKNOWN_SENTINEL`
   - `face_vision/engine/face_tracker.py` → `from face_vision.types import UNKNOWN_SENTINEL, TrackedFace, BBox`
   - `face_vision/pipeline.py` → `from face_vision.engine.face_detector import FaceDetector`
   - `face_vision/detector_protocol.py` → 抽象接口，用户可实现以接入自己的模型
   - `face_vision/__init__.py` → 从 `face_vision.*` 和 `face_vision.engine.*` 收集全部 API
-
-**旧仓库 `d:\FaceVision` 保留不变。**
-
----
-
-## 二、`face_vision/engine/` — 原来文件（迁移 + 重构）
-
-> 以下 6 个文件均从 `d:\FaceVision\*.py` 复制过来，然后按标注逐处修改。
 
 ---
 
@@ -92,7 +88,6 @@ FaceVision/                              # Git 仓库根目录（项目名）
 
 ### 文件 3-1：`face_vision/engine/config.py`
 
-**来源：** `d:\FaceVision\config.py`
 **改动：** 删除 `load_settings()` / `save_settings()` / `APP_SETTINGS`，仅保留常量。
 
 ```python
@@ -132,7 +127,6 @@ def get_default_settings() -> dict:
 
 ### 文件 3-2：`face_vision/engine/camera.py`
 
-**来源：** `d:\FaceVision\camera.py`
 **改动：**
 
 | 行 | 原代码 | 改为 |
@@ -329,7 +323,6 @@ class CameraThread:
 
 ### 文件 3-3：`face_vision/engine/face_detector.py`
 
-**来源：** `d:\FaceVision\face_detector.py`
 **改动：** 增加 `_get_backend()` 方法，原 `_resolve_providers` 保持不变（已自动按平台探测 CUDA/DirectML/CPU）。
 
 > **v1.0 多平台 GPU 支持：**
@@ -478,7 +471,6 @@ def _handle_inference_error(self, e, frame):
 
 ### 文件 3-4：`face_vision/engine/face_recognizer.py`
 
-**来源：** `d:\FaceVision\face_recognizer.py`
 **改动：仅 1 行**
 
 ```python
@@ -494,7 +486,6 @@ from face_vision.types import UNKNOWN_SENTINEL
 
 ### 文件 3-5：`face_vision/engine/face_tracker.py`
 
-**来源：** `d:\FaceVision\face_tracker.py`
 **改动：两处**
 
 #### A. 导入（文件顶部）
@@ -556,7 +547,6 @@ return results
 
 ### 文件 3-6：`face_vision/engine/face_database.py`
 
-**来源：** `d:\FaceVision\face_database.py`
 **改动：** 新增导入 + `save()`/`load()` 加异常包装。
 
 #### A. 新增导入
@@ -1792,9 +1782,8 @@ class TestPipeline:
 5. **`device="auto"`：** 等价于 `"cuda"`，自动探测最优 GPU（macOS 上等同于 `"cpu"`）
 6. **BBox vs tuple：** IoU 计算、cv2 调用内部仍用 tuple 保证性能；仅公开 API 返回 BBox dataclass
 7. **线程安全：** `Pipeline.process_frame()` 有 `threading.Lock`；`FaceRecognizer.update_cache()` 由 Pipeline 内部串行化
-8. **旧仓库兼容：** `d:\FaceVision` 不动；后续单独将 `main.py`/`ui_pyqt6.py` 改为 `from face_vision import ...`
-9. **async：** v1.0 仅同步接口；v1.1+ 用 `asyncio.to_thread()` 包装
-10. **代码风格：** 全部注释/报错使用英文；遵循 PEP8 规范（见第十章）
+8. **async：** v1.0 仅同步接口；v1.1+ 用 `asyncio.to_thread()` 包装
+9. **代码风格：** 全部注释/报错使用英文；遵循 PEP8 规范（见第十章）
 
 
 ---

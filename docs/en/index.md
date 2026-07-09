@@ -1,8 +1,8 @@
 # FaceVision
 
-FaceVision is a real-time face recognition Python library. It extracts the core
-algorithms from the original PyQt6 desktop app into a clean, GUI-free package
-for detection, embedding extraction, recognition, tracking, and camera capture.
+FaceVision is a real-time face recognition Python library. It provides a clean,
+GUI-free package for detection, embedding extraction, recognition, tracking,
+and camera capture.
 
 ## Features
 
