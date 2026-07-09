@@ -1,13 +1,13 @@
 # Example: Custom Detector
 
 Implement `DetectorProtocol` to plug YOLO, MediaPipe, or any other model into the
-FaceVision pipeline.
+FaceHub pipeline.
 
 ```python
 import numpy as np
-from face_vision import (
+from face_hub import (
     DetectorProtocol, DetectionWithEmbedding, BBox,
-    FaceVisionPipeline, FaceRecognizer, FaceTracker, FaceDatabase, CameraThread,
+    FaceHubPipeline, FaceRecognizer, FaceTracker, FaceDatabase, CameraThread,
 )
 
 
@@ -46,7 +46,7 @@ class MyYoloDetector:
 # Use the custom detector
 camera = CameraThread()
 db = FaceDatabase()
-pipeline = FaceVisionPipeline(
+pipeline = FaceHubPipeline(
     camera,
     MyYoloDetector(),
     FaceRecognizer(),

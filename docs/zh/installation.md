@@ -3,7 +3,7 @@
 ## 基础安装
 
 ```bash
-pip install facevision
+pip install face-hub
 ```
 
 ## GPU 加速（可选）
@@ -12,20 +12,20 @@ pip install facevision
 
 ```bash
 pip uninstall -y onnxruntime
-pip install facevision[gpu-win]
+pip install face-hub[gpu-win]
 ```
 
 ### Linux NVIDIA CUDA
 
 ```bash
 pip uninstall -y onnxruntime
-pip install facevision[gpu-linux]
+pip install face-hub[gpu-linux]
 ```
 
 ## 开发依赖
 
 ```bash
-pip install facevision[dev]
+pip install face-hub[dev]
 ```
 
 ## 平台说明
@@ -36,5 +36,5 @@ pip install facevision[dev]
 
 ## 模型许可
 
-FaceVision 代码采用 MIT License。但 insightface 自动下载的 `buffalo_l` 预训练模型
+FaceHub 代码采用 MIT License。但 insightface 自动下载的 `buffalo_l` 预训练模型
 受其非商用模型许可约束，商业使用需向 insightface 申请授权。

@@ -7,9 +7,9 @@ Embeddings are provided by FaceDetector.detect_with_embeddings() to avoid duplic
 import numpy as np
 import logging
 
-from face_vision.types import UNKNOWN_SENTINEL
+from face_hub.types import UNKNOWN_SENTINEL
 
-logger = logging.getLogger("face_vision.recognizer")
+logger = logging.getLogger("face_hub.recognizer")
 
 
 class FaceRecognizer:

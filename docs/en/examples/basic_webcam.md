@@ -3,8 +3,8 @@
 Open the webcam and recognize registered people in real time.
 
 ```python
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, CameraThread,
 )
 
@@ -16,7 +16,7 @@ tracker = FaceTracker(smooth_frames=5)
 camera = CameraThread(camera_id=0, width=640, height=360)
 
 # Assemble pipeline
-pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
 pipeline.start()
 
 try:

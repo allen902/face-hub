@@ -1,12 +1,12 @@
 # 示例：自定义检测器
 
-实现 `DetectorProtocol` 即可将 YOLO、MediaPipe 等自有模型接入 FaceVision 流水线。
+实现 `DetectorProtocol` 即可将 YOLO、MediaPipe 等自有模型接入 FaceHub 流水线。
 
 ```python
 import numpy as np
-from face_vision import (
+from face_hub import (
     DetectorProtocol, DetectionWithEmbedding, BBox,
-    FaceVisionPipeline, FaceRecognizer, FaceTracker, FaceDatabase, CameraThread,
+    FaceHubPipeline, FaceRecognizer, FaceTracker, FaceDatabase, CameraThread,
 )
 
 
@@ -45,7 +45,7 @@ class MyYoloDetector:
 # 使用自定义检测器
 camera = CameraThread()
 db = FaceDatabase()
-pipeline = FaceVisionPipeline(
+pipeline = FaceHubPipeline(
     camera,
     MyYoloDetector(),
     FaceRecognizer(),

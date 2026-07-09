@@ -1,7 +1,7 @@
 """Test FaceRecognizer cosine similarity matching and cache."""
 
 import numpy as np
-from face_vision import FaceRecognizer, UNKNOWN_SENTINEL
+from face_hub import FaceRecognizer, UNKNOWN_SENTINEL
 
 
 def make_encoding(seed=42):

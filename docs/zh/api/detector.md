@@ -46,12 +46,12 @@
 实现 `DetectorProtocol` 接口即可接入自有模型：
 
 ```python
-from face_vision import DetectorProtocol, DetectionWithEmbedding, BBox
+from face_hub import DetectorProtocol, DetectionWithEmbedding, BBox
 
 class MyDetector:
     def detect_with_embeddings(self, frame):
         ...  # 你的检测 + 特征提取逻辑
         return [DetectionWithEmbedding(...)]
 
-pipeline = FaceVisionPipeline(camera, MyDetector(), ...)
+pipeline = FaceHubPipeline(camera, MyDetector(), ...)
 ```

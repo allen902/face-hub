@@ -1,4 +1,4 @@
-site_name: FaceVision
+site_name: FaceHub
 theme: material
 nav:
   - Home: index.md

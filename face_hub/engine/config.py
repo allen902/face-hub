@@ -1,5 +1,5 @@
 """
-FaceVision default configuration constants.
+FaceHub default configuration constants.
 
 The library never reads any config file. Callers should:
   1. Read their own config file (JSON / YAML / TOML etc.)

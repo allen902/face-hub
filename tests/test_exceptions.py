@@ -1,7 +1,7 @@
 """Test exception hierarchy."""
 
-from face_vision.exceptions import (
-    FaceVisionError, ModelLoadError, InferenceError,
+from face_hub.exceptions import (
+    FaceHubError, ModelLoadError, InferenceError,
     CameraError, DatabaseError, RecognitionError,
 )
 
@@ -10,12 +10,12 @@ class TestExceptionHierarchy:
     def test_all_inherit_from_base(self):
         for cls in [ModelLoadError, InferenceError, CameraError,
                      DatabaseError, RecognitionError]:
-            assert issubclass(cls, FaceVisionError)
+            assert issubclass(cls, FaceHubError)
 
     def test_catch_by_base(self):
         try:
             raise ModelLoadError("test")
-        except FaceVisionError:
+        except FaceHubError:
             pass  # should catch
         else:
             assert False

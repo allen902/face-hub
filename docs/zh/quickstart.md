@@ -3,14 +3,14 @@
 ## 安装
 
 ```bash
-pip install facevision
+pip install face-hub
 ```
 
 ## 5 分钟示例
 
 ```python
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, CameraThread,
 )
 
@@ -22,7 +22,7 @@ tracker = FaceTracker(smooth_frames=5)
 camera = CameraThread(camera_id=0, width=640, height=360)
 
 # 2. 组装流水线
-pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
 pipeline.start()
 
 # 3. 循环处理

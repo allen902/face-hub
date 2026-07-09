@@ -1,8 +1,8 @@
-"""Test FaceVisionPipeline integration (using mock camera)."""
+"""Test FaceHubPipeline integration (using mock camera)."""
 
 import numpy as np
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, PipelineResult,
 )
 
@@ -28,7 +28,7 @@ class TestPipeline:
         recognizer = FaceRecognizer(tolerance=0.45)
         tracker = FaceTracker(smooth_frames=3)
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         assert pipeline.is_running is False
 
     def test_start_stop(self, temp_db_paths):
@@ -39,7 +39,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         pipeline.start()
         assert pipeline.is_running is True
         pipeline.stop()
@@ -53,7 +53,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         # process_frame with explicit frame (no camera needed)
         result = pipeline.process_frame(frame=sample_frame)
         assert isinstance(result, PipelineResult)
@@ -67,7 +67,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         results = pipeline.detect_only(sample_frame)
         assert isinstance(results, list)
 
@@ -79,7 +79,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         db.add_person("Test", "/tmp/test.jpg", sample_encoding)
         rebuilt = pipeline.update_database_cache()
         assert rebuilt is True

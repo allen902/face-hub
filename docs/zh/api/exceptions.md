@@ -1,11 +1,11 @@
 # 异常
 
-FaceVision 使用自定义异常层级，所有异常均继承自 `FaceVisionError`。
+FaceHub 使用自定义异常层级，所有异常均继承自 `FaceHubError`。
 
 ## 异常层级
 
 ```
-FaceVisionError
+FaceHubError
 ├── ModelLoadError
 ├── InferenceError
 ├── CameraError
@@ -26,10 +26,10 @@ FaceVisionError
 ## 捕获示例
 
 ```python
-from face_vision.exceptions import FaceVisionError
+from face_hub.exceptions import FaceHubError
 
 try:
     detector = FaceDetector(device="cpu")
-except FaceVisionError as e:
-    print(f"FaceVision error: {e}")
+except FaceHubError as e:
+    print(f"FaceHub error: {e}")
 ```

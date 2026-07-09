@@ -1,11 +1,11 @@
 """
-FaceVision runtime performance benchmark.
+FaceHub runtime performance benchmark.
 
 Measures end-to-end pipeline FPS and per-component latency:
   - FaceDetector.detect_with_embeddings
   - FaceRecognizer.recognize
   - FaceTracker.update
-  - FaceVisionPipeline.process_frame
+  - FaceHubPipeline.process_frame
 
 Usage:
     # Live camera benchmark
@@ -29,13 +29,13 @@ from typing import Callable, List
 
 import numpy as np
 
-from face_vision import (
+from face_hub import (
     CameraThread,
     FaceDatabase,
     FaceDetector,
     FaceRecognizer,
     FaceTracker,
-    FaceVisionPipeline,
+    FaceHubPipeline,
 )
 
 
@@ -145,7 +145,7 @@ def benchmark_pipeline_live(camera_id: int, width: int, height: int,
     tracker = FaceTracker(smooth_frames=5)
     db = FaceDatabase(db_path="bench_db.json", encoding_path="bench_enc.pkl")
 
-    pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+    pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
     pipeline.start()
 
     times: List[float] = []
@@ -165,7 +165,7 @@ def benchmark_pipeline_live(camera_id: int, width: int, height: int,
     finally:
         pipeline.stop()
 
-    summarize("FaceVisionPipeline.process_frame (live)", times)
+    summarize("FaceHubPipeline.process_frame (live)", times)
 
 
 def benchmark_pipeline_synthetic(width: int, height: int, device: str,
@@ -189,7 +189,7 @@ def benchmark_pipeline_synthetic(width: int, height: int, device: str,
         def get_frame(self, timeout=None, copy=True):
             return np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
 
-    pipeline = FaceVisionPipeline(MockCamera(), detector, recognizer, tracker, db)
+    pipeline = FaceHubPipeline(MockCamera(), detector, recognizer, tracker, db)
     pipeline.start()
 
     times: List[float] = []
@@ -202,7 +202,7 @@ def benchmark_pipeline_synthetic(width: int, height: int, device: str,
     finally:
         pipeline.stop()
 
-    summarize("FaceVisionPipeline.process_frame (synthetic)", times)
+    summarize("FaceHubPipeline.process_frame (synthetic)", times)
 
 
 def benchmark_components(width: int, height: int, device: str, det_size: int) -> None:
@@ -222,7 +222,7 @@ def benchmark_components(width: int, height: int, device: str, det_size: int) ->
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="FaceVision performance benchmark")
+    parser = argparse.ArgumentParser(description="FaceHub performance benchmark")
     parser.add_argument("--live", action="store_true", help="use live camera")
     parser.add_argument("--synthetic", action="store_true", help="use synthetic frames")
     parser.add_argument("--component", action="store_true", help="run component-level benchmark")

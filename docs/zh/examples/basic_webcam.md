@@ -3,8 +3,8 @@
 打开摄像头并实时识别已注册人员。
 
 ```python
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, CameraThread,
 )
 
@@ -16,7 +16,7 @@ tracker = FaceTracker(smooth_frames=5)
 camera = CameraThread(camera_id=0, width=640, height=360)
 
 # 组装流水线
-pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
 pipeline.start()
 
 try:

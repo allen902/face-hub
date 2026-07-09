@@ -1,10 +1,10 @@
-# FaceVision
+# FaceHub
 
 > Real-time face recognition library — detection, embedding, tracking, and matching.
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://github.com/allen902/face_vision/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face_vision/actions/workflows/publish.yml)
+[![Tests](https://github.com/allen902/face_hub/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face_hub/actions/workflows/publish.yml)
 
 ## Features
 
@@ -18,7 +18,7 @@
 ## Installation
 
 ```bash
-pip install face-vision
+pip install face-hub
 ```
 
 Optional GPU backends:
@@ -26,18 +26,18 @@ Optional GPU backends:
 ```bash
 # Windows DirectML
 pip uninstall -y onnxruntime
-pip install face-vision[gpu-win]
+pip install face-hub[gpu-win]
 
 # Linux NVIDIA CUDA
 pip uninstall -y onnxruntime
-pip install face-vision[gpu-linux]
+pip install face-hub[gpu-linux]
 ```
 
 ## Quick Start
 
 ```python
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, CameraThread,
 )
 
@@ -49,7 +49,7 @@ tracker = FaceTracker(smooth_frames=5)
 camera = CameraThread(camera_id=0, width=640, height=360)
 
 # 2. Assemble the pipeline
-pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
 pipeline.start()
 
 # 3. Loop
@@ -69,7 +69,7 @@ finally:
 Any object satisfying `DetectorProtocol` can be plugged into the pipeline:
 
 ```python
-from face_vision import DetectorProtocol, DetectionWithEmbedding, BBox
+from face_hub import DetectorProtocol, DetectionWithEmbedding, BBox
 
 class MyYoloDetector:
     def detect_with_embeddings(self, frame):
@@ -84,7 +84,7 @@ class MyYoloDetector:
             for b in boxes
         ]
 
-pipeline = FaceVisionPipeline(camera, MyYoloDetector(), recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, MyYoloDetector(), recognizer, tracker, db)
 ```
 
 ## Documentation
@@ -98,13 +98,13 @@ cd docs && mkdocs serve
 
 ## License
 
-The FaceVision **code** is released under the [MIT License](LICENSE).
+The FaceHub **code** is released under the [MIT License](LICENSE).
 
 > ⚠️ The pre-trained `buffalo_l` model downloaded automatically by insightface is subject to insightface's own model license and is for non-commercial research use unless separate authorization is obtained. See the documentation for details.
 
 ---
 
-# FaceVision（中文）
+# FaceHub（中文）
 
 > 实时人脸识别库 — 检测、特征提取、追踪、匹配。
 
@@ -120,7 +120,7 @@ The FaceVision **code** is released under the [MIT License](LICENSE).
 ## 安装
 
 ```bash
-pip install face-vision
+pip install face-hub
 ```
 
 可选 GPU 后端：
@@ -128,18 +128,18 @@ pip install face-vision
 ```bash
 # Windows DirectML
 pip uninstall -y onnxruntime
-pip install face-vision[gpu-win]
+pip install face-hub[gpu-win]
 
 # Linux NVIDIA CUDA
 pip uninstall -y onnxruntime
-pip install face-vision[gpu-linux]
+pip install face-hub[gpu-linux]
 ```
 
 ## 快速开始
 
 ```python
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, CameraThread,
 )
 
@@ -151,7 +151,7 @@ tracker = FaceTracker(smooth_frames=5)
 camera = CameraThread(camera_id=0, width=640, height=360)
 
 # 2. 组装流水线
-pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
 pipeline.start()
 
 # 3. 循环处理
@@ -176,6 +176,6 @@ finally:
 
 ## 许可
 
-FaceVision **代码** 采用 [MIT License](LICENSE)。
+FaceHub **代码** 采用 [MIT License](LICENSE)。
 
 > ⚠️ insightface 自动下载的 `buffalo_l` 预训练模型受其模型许可约束，默认仅供非商用研究使用；商业使用需单独获取授权。详见文档。

@@ -1,4 +1,4 @@
-# FaceVision — Developer Setup Guide
+# FaceHub — Developer Setup Guide
 
 > 本文档列出 AI 无法代劳的事项：你需要自己准备和操作的内容。
 > 按优先级排序，完成一个勾一个。
@@ -9,7 +9,7 @@
 
 ### 1.1 GitHub 仓库
 
-- [ ] 在 GitHub 创建新仓库 `FaceVision`（建议 Public）
+- [ ] 在 GitHub 创建新仓库 `face_hub`（建议 Public）
 - [ ] 仓库设置 → Actions → General → 勾选 "Allow GitHub Actions to create and approve pull requests"
 - [ ] Settings → Branches → 添加分支保护规则：`main` 分支要求 PR + 1 review
 - [ ] 本地 `git init`、关联 remote、首次 push
@@ -17,11 +17,11 @@
 ### 1.2 PyPI 账号
 
 - [ ] 注册 [pypi.org](https://pypi.org) 账号
-- [ ] 创建 API token：Account Settings → API tokens → "facevision" → 勾选 "Upload packages"
+- [ ] 创建 API token：Account Settings → API tokens → "face-hub" → 勾选 "Upload packages"
 - [ ] **或** 使用 PyPI Trusted Publishing（推荐，无需 token）：
   - PyPI 项目页面 → Settings → Publishing → 添加 Trusted Publisher
   - Owner: 你的 GitHub 用户名
-  - Repository: `FaceVision`
+  - Repository: `face_hub`
   - Workflow: `publish.yml`
   - Environment: 留空
 
@@ -66,7 +66,7 @@ venv/
 .DS_Store
 Thumbs.db
 
-# FaceVision runtime files
+# FaceHub runtime files
 face_db.json
 encodings.pkl
 settings.json
@@ -123,7 +123,7 @@ test_enc.pkl
 - [ ] `FaceDetector` 不同 `det_size` 切换（320 → 480 → 640）
 - [ ] `FaceRecognizer` 同一个人多次识别，相似度 > 0.80
 - [ ] `FaceTracker` 多人脸同时追踪，track_id 正确分配
-- [ ] `FaceVisionPipeline` 完整链路跑通（摄像头 → 检测 → 识别 → 追踪）
+- [ ] `FaceHubPipeline` 完整链路跑通（摄像头 → 检测 → 识别 → 追踪）
 
 ---
 
@@ -137,7 +137,7 @@ pytest tests/ -v --ignore=tests/test_face_detector.py
 
 # 2. 更新版本号（两处）
 #    - pyproject.toml: version = "1.0.0"
-#    - face_vision/__init__.py: __version__ = "1.0.0"
+#    - face_hub/__init__.py: __version__ = "1.0.0"
 
 # 3. 本地构建验证
 pip install build
@@ -146,8 +146,8 @@ twine check dist/*
 
 # 4. （可选）先上传 Test PyPI
 twine upload --repository testpypi dist/*
-pip install --index-url https://test.pypi.org/simple/ facevision
-# 验证: python -c "from face_vision import FaceVisionPipeline; print('OK')"
+pip install --index-url https://test.pypi.org/simple/ face-hub
+# 验证: python -c "from face_hub import FaceHubPipeline; print('OK')"
 
 # 5. 提交、打 tag、推送
 git add -A
@@ -156,13 +156,13 @@ git tag v1.0.0
 git push origin main --tags
 
 # 6. 等待 GitHub Actions 完成（test → publish）
-# 7. 在 PyPI 确认包已上线: https://pypi.org/project/facevision/
+# 7. 在 PyPI 确认包已上线: https://pypi.org/project/face-hub/
 ```
 
 ### 5.2 发布后验证
 
-- [ ] 在新虚拟环境中 `pip install facevision` 安装最新版
-- [ ] `python -c "from face_vision import *; print('OK')"` 无错误
+- [ ] 在新虚拟环境中 `pip install face-hub` 安装最新版
+- [ ] `python -c "from face_hub import *; print('OK')"` 无错误
 - [ ] 跑一遍 Quick Start 示例代码
 
 ---
@@ -194,7 +194,7 @@ git push origin main --tags
 | ONNX Runtime GPU 变体冲突 | 用户安装 GPU 版失败 | README 已写明 `uninstall` 步骤 |
 | 摄像头权限 | macOS 需用户授权终端/IDE 访问摄像头 | README 加提示 |
 | 模型首次下载 | 首次 `FaceDetector()` 需下载 ~200MB 模型 | README 注明首次启动耗时 |
-| PyPI 包名被占用 | `facevision` 可能已被注册 | 提前在 PyPI 检查；备选 `face-vision` |
+| PyPI 包名被占用 | `face-hub` 可能已被注册 | 提前在 PyPI 检查；备选 `facehub` |
 | GitHub Actions 分钟数 | 三平台 × 3 Python 版本矩阵较大 | 关注 Actions 使用量；可减少矩阵 |
 
 ---

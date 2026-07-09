@@ -55,7 +55,7 @@
 
 ## PipelineResult
 
-`FaceVisionPipeline.process_frame()` 的完整返回。
+`FaceHubPipeline.process_frame()` 的完整返回。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|

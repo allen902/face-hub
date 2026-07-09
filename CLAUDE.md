@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-> FaceVision — 实时人脸识别系统 · AI Agent 上下文指南
+> FaceHub — 实时人脸识别系统 · AI Agent 上下文指南
 
 ---
 
@@ -24,7 +24,7 @@ main.py                  # 入口：依次加载 DB → Detector → Recognizer 
 ├── face_tracker.py      # 时序追踪 (IoU 匹配 + 滑动窗口身份投票)
 └── ui_pyqt6.py          # PyQt6 深色仪表盘 UI (~1700行, 当前主界面)
     ├── ProcessingThread   # 异步 ML 推理线程 (Frame → Detect → Track → Emit)
-    ├── FaceVisionWindow   # 主窗口 (无边框, Mica 背景, 自定义标题栏拖动)
+    ├── FaceHubWindow   # 主窗口 (无边框, Mica 背景, 自定义标题栏拖动)
     ├── SettingsDialogPyQt  # 设置对话框 (可滚动, 固定底部按钮)
     ├── GlassDialog         # 对话框基类 (无边框, 拖动, 深色背景)
     ├── AddPersonDialogPyQt # 添加人员
@@ -38,7 +38,7 @@ CameraThread.get_frame() → ProcessingThread._run()
   → Detector.detect_with_embeddings(frame)  # 检测 + 特征
   → Tracker.update(faces, recognizer)        # IoU 追踪 + 身份投票
   → frame_ready.emit(frame, results)         # 信号 → UI 主线程
-  → FaceVisionWindow._on_frame()             # cv2 绘制 → QPixmap → QLabel
+  → FaceHubWindow._on_frame()             # cv2 绘制 → QPixmap → QLabel
 ```
 
 ---
@@ -55,7 +55,7 @@ CameraThread.get_frame() → ProcessingThread._run()
 ### 主窗口布局
 ```
 ┌── 自定义标题栏 (48px, 可拖动) ──────────────────────┐
-│  🔷 FaceVision                    ─  ✕              │
+│  🔷 FaceHub                    ─  ✕              │
 ├──────────────────────┬───────────────────────────────┤
 │   中央画面 (QFrame    │  右侧面板 (QScrollArea, 300px) │
 │   objectName="card")  │  ┌ 已注册人员 ──────────────┐ │
@@ -124,7 +124,7 @@ Qt 中 QComboBox 的弹出列表是独立顶层窗口，不继承父级 QSS。
 
 ```
 ┌ QVBoxLayout (outer) ──────────────────────────────┐
-│  ⚙ FaceVision 设置 (固定)                          │
+│  ⚙ FaceHub 设置 (固定)                          │
 │  ───────────── (分隔线, 固定)                       │
 │  ┌ QScrollArea (可滚动) ──────────────────────────┐ │
 │  │  推理设备: [CPU] [GPU (DirectML)]               │ │

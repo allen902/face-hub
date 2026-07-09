@@ -1,6 +1,6 @@
 """Test config constants."""
 
-from face_vision import DEFAULT_SETTINGS, get_default_settings
+from face_hub import DEFAULT_SETTINGS, get_default_settings
 
 
 class TestDefaultSettings:

@@ -1,6 +1,6 @@
-# FaceVision
+# FaceHub
 
-FaceVision is a real-time face recognition Python library. It provides a clean,
+FaceHub is a real-time face recognition Python library. It provides a clean,
 GUI-free package for detection, embedding extraction, recognition, tracking,
 and camera capture.
 

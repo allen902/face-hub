@@ -18,7 +18,7 @@ FaceVision/                              # Git 仓库根目录（项目名）
 │   └── workflows/
 │       └── publish.yml                  # [新写] 三平台 CI + 自动发布
 │
-├── face_vision/                         # Python 包（小写+下划线）
+├── face_hub/                         # Python 包（小写+下划线）
 │   ├── __init__.py                      #   公开 API，__version__ = "1.0.0"
 │   ├── types.py                         #   [新写] dataclass 类型 + UNKNOWN_SENTINEL
 │   ├── exceptions.py                    #   [新写] 自定义异常层级
@@ -54,39 +54,39 @@ FaceVision/                              # Git 仓库根目录（项目名）
 ```
 
 **包内导入关系（单包，无冲突）：**
-- `face_vision/engine/face_detector.py` → `from face_vision.types import ...` / `from face_vision.exceptions import ...`
-- `face_vision/engine/face_recognizer.py` → `from face_vision.types import UNKNOWN_SENTINEL`
-- `face_vision/engine/face_tracker.py` → `from face_vision.types import UNKNOWN_SENTINEL, TrackedFace, BBox`
-- `face_vision/pipeline.py` → `from face_vision.engine.face_detector import FaceDetector`
-- `face_vision/detector_protocol.py` → `from face_vision.types import ...`
-- `face_vision/__init__.py` → 从 `face_vision.*` 和 `face_vision.engine.*` 收集全部 API
+- `face_hub/engine/face_detector.py` → `from face_hub.types import ...` / `from face_hub.exceptions import ...`
+- `face_hub/engine/face_recognizer.py` → `from face_hub.types import UNKNOWN_SENTINEL`
+- `face_hub/engine/face_tracker.py` → `from face_hub.types import UNKNOWN_SENTINEL, TrackedFace, BBox`
+- `face_hub/pipeline.py` → `from face_hub.engine.face_detector import FaceDetector`
+- `face_hub/detector_protocol.py` → `from face_hub.types import ...`
+- `face_hub/__init__.py` → 从 `face_hub.*` 和 `face_hub.engine.*` 收集全部 API
 ```
 
 **包结构（单一顶层包 `FaceVision`，`engine/` 为算法子包）：**
-- `face_vision/` — 主包，用户唯一入口。`__init__.py` re-export 全部公开 API
-- `face_vision/engine/` — 算法引擎子包，包含全部核心模块
+- `face_hub/` — 主包，用户唯一入口。`__init__.py` re-export 全部公开 API
+- `face_hub/engine/` — 算法引擎子包，包含全部核心模块
 
 ---
 
-## 二、`face_vision/engine/` — 核心算法引擎
+## 二、`face_hub/engine/` — 核心算法引擎
 
 内部导入关系：
-  - `face_vision/engine/face_detector.py` → `from face_vision.types import ...` / `from face_vision.exceptions import ...`
-  - `face_vision/engine/face_recognizer.py` → `from face_vision.types import UNKNOWN_SENTINEL`
-  - `face_vision/engine/face_tracker.py` → `from face_vision.types import UNKNOWN_SENTINEL, TrackedFace, BBox`
-  - `face_vision/pipeline.py` → `from face_vision.engine.face_detector import FaceDetector`
-  - `face_vision/detector_protocol.py` → 抽象接口，用户可实现以接入自己的模型
-  - `face_vision/__init__.py` → 从 `face_vision.*` 和 `face_vision.engine.*` 收集全部 API
+  - `face_hub/engine/face_detector.py` → `from face_hub.types import ...` / `from face_hub.exceptions import ...`
+  - `face_hub/engine/face_recognizer.py` → `from face_hub.types import UNKNOWN_SENTINEL`
+  - `face_hub/engine/face_tracker.py` → `from face_hub.types import UNKNOWN_SENTINEL, TrackedFace, BBox`
+  - `face_hub/pipeline.py` → `from face_hub.engine.face_detector import FaceDetector`
+  - `face_hub/detector_protocol.py` → 抽象接口，用户可实现以接入自己的模型
+  - `face_hub/__init__.py` → 从 `face_hub.*` 和 `face_hub.engine.*` 收集全部 API
 
 ---
 
-### 文件 3-0：`face_vision/engine/__init__.py`
+### 文件 3-0：`face_hub/engine/__init__.py`
 
 ```python
-"""face_vision engine — core algorithms for detection, recognition, tracking."""
+"""face_hub engine — core algorithms for detection, recognition, tracking."""
 ```
 
-### 文件 3-1：`face_vision/engine/config.py`
+### 文件 3-1：`face_hub/engine/config.py`
 
 **改动：** 删除 `load_settings()` / `save_settings()` / `APP_SETTINGS`，仅保留常量。
 
@@ -125,17 +125,17 @@ def get_default_settings() -> dict:
 
 ---
 
-### 文件 3-2：`face_vision/engine/camera.py`
+### 文件 3-2：`face_hub/engine/camera.py`
 
 **改动：**
 
 | 行 | 原代码 | 改为 |
 |----|--------|------|
 | L10 | 无 `import logging` | `import logging` |
-| L13 | 无 logger | `logger = logging.getLogger("face_vision.camera")` |
+| L13 | 无 logger | `logger = logging.getLogger("face_hub.camera")` |
 | L14 | `os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"` | 加 `sys.platform` 守卫，仅 Windows 设置 |
 | L19 | `cv2.CAP_DSHOW` 硬编码 | `_get_backend()` 按平台选择 |
-| L52 | `raise RuntimeError(...)` | `from face_vision.exceptions import CameraError` + `raise CameraError(...)` |
+| L52 | `raise RuntimeError(...)` | `from face_hub.exceptions import CameraError` + `raise CameraError(...)` |
 | L56 | `print(f"[Camera] 实际分辨率:...")` | `logger.info("Actual resolution: %dx%d", int(actual_w), int(actual_h))` |
 | L122 | `cv2.CAP_DSHOW` 硬编码 | `_get_backend()` |
 | 新增 | — | `_get_backend()` 静态方法 |
@@ -165,7 +165,7 @@ from collections import deque
 if sys.platform == "win32":
     os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 
-logger = logging.getLogger("face_vision.camera")
+logger = logging.getLogger("face_hub.camera")
 
 
 class CameraThread:
@@ -218,7 +218,7 @@ class CameraThread:
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         if not self.cap.isOpened():
-            from face_vision.exceptions import CameraError
+            from face_hub.exceptions import CameraError
             raise CameraError(f"Cannot open camera (ID={self.camera_id})")
 
         actual_w = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -321,7 +321,7 @@ class CameraThread:
 
 ---
 
-### 文件 3-3：`face_vision/engine/face_detector.py`
+### 文件 3-3：`face_hub/engine/face_detector.py`
 
 **改动：** 增加 `_get_backend()` 方法，原 `_resolve_providers` 保持不变（已自动按平台探测 CUDA/DirectML/CPU）。
 
@@ -368,8 +368,8 @@ class CameraThread:
 
 ```python
 # 在现有 import 之后追加
-from face_vision.types import DetectionResult, DetectionWithEmbedding, BBox
-from face_vision.exceptions import ModelLoadError, InferenceError
+from face_hub.types import DetectionResult, DetectionWithEmbedding, BBox
+from face_hub.exceptions import ModelLoadError, InferenceError
 ```
 
 #### C. `__init__` — 新增 `"auto"` 默认值
@@ -469,7 +469,7 @@ def _handle_inference_error(self, e, frame):
 
 ---
 
-### 文件 3-4：`face_vision/engine/face_recognizer.py`
+### 文件 3-4：`face_hub/engine/face_recognizer.py`
 
 **改动：仅 1 行**
 
@@ -477,14 +477,14 @@ def _handle_inference_error(self, e, frame):
 # 第 10 行：
 # 原: from i18n import UNKNOWN_SENTINEL
 # 新:
-from face_vision.types import UNKNOWN_SENTINEL
+from face_hub.types import UNKNOWN_SENTINEL
 ```
 
-**其余全部逐字保留。** logger 名保持 `"face_vision.recognizer"`。完整代码略（复制原文件改一行即可）。
+**其余全部逐字保留。** logger 名保持 `"face_hub.recognizer"`。完整代码略（复制原文件改一行即可）。
 
 ---
 
-### 文件 3-5：`face_vision/engine/face_tracker.py`
+### 文件 3-5：`face_hub/engine/face_tracker.py`
 
 **改动：两处**
 
@@ -498,9 +498,9 @@ from i18n import UNKNOWN_SENTINEL
 import numpy as np
 import logging
 
-from face_vision.types import UNKNOWN_SENTINEL, TrackedFace, BBox
+from face_hub.types import UNKNOWN_SENTINEL, TrackedFace, BBox
 
-logger = logging.getLogger("face_vision.tracker")
+logger = logging.getLogger("face_hub.tracker")
 ```
 
 #### B. `update()` 返回值构建（原 L252-267）
@@ -545,7 +545,7 @@ return results
 
 ---
 
-### 文件 3-6：`face_vision/engine/face_database.py`
+### 文件 3-6：`face_hub/engine/face_database.py`
 
 **改动：** 新增导入 + `save()`/`load()` 加异常包装。
 
@@ -553,9 +553,9 @@ return results
 
 ```python
 import logging
-from face_vision.exceptions import DatabaseError
+from face_hub.exceptions import DatabaseError
 
-logger = logging.getLogger("face_vision.database")
+logger = logging.getLogger("face_hub.database")
 ```
 
 #### B. `save()`
@@ -593,11 +593,11 @@ def load(self):
 
 ---
 
-## 三、`face_vision/` — 新写文件（从零编写）
+## 三、`face_hub/` — 新写文件（从零编写）
 
 ---
 
-### 文件 4-1：`face_vision/types.py`
+### 文件 4-1：`face_hub/types.py`
 
 ```python
 """
@@ -618,7 +618,7 @@ import numpy as np
 UNKNOWN_SENTINEL = "unknown"
 """
 Stable sentinel for "not recognized as any registered person".
-Import via: from face_vision.types import UNKNOWN_SENTINEL
+Import via: from face_hub.types import UNKNOWN_SENTINEL
 """
 
 
@@ -710,7 +710,7 @@ class TrackedFace:
 @dataclass
 class PipelineResult:
     """
-    Returned by FaceVisionPipeline.process_frame().
+    Returned by FaceHubPipeline.process_frame().
     """
     frame: np.ndarray = field(repr=False)
     raw_detections: List[DetectionWithEmbedding] = field(default_factory=list)
@@ -732,41 +732,41 @@ class PipelineResult:
 
 ---
 
-### 文件 4-2：`face_vision/exceptions.py`
+### 文件 4-2：`face_hub/exceptions.py`
 
 ```python
 """
 FaceVision exception hierarchy.
-All library exceptions inherit from FaceVisionError.
+All library exceptions inherit from FaceHubError.
 """
 
 
-class FaceVisionError(Exception):
+class FaceHubError(Exception):
     """Base exception for all FaceVision errors."""
     pass
 
 
-class ModelLoadError(FaceVisionError):
+class ModelLoadError(FaceHubError):
     """Model loading failed (insightface not installed / no ONNX provider / corrupt model)."""
     pass
 
 
-class InferenceError(FaceVisionError):
+class InferenceError(FaceHubError):
     """ML inference runtime error (GPU crash + CPU fallback also failed)."""
     pass
 
 
-class CameraError(FaceVisionError):
+class CameraError(FaceHubError):
     """Camera error (not connected / in use / unsupported resolution)."""
     pass
 
 
-class DatabaseError(FaceVisionError):
+class DatabaseError(FaceHubError):
     """Database read/write error (JSON parse / pickle corrupt / disk full / permission)."""
     pass
 
 
-class RecognitionError(FaceVisionError):
+class RecognitionError(FaceHubError):
     """Recognition matching error (encoding dimension mismatch / empty cache)."""
     pass
 ```
@@ -775,13 +775,13 @@ class RecognitionError(FaceVisionError):
 
 ---
 
-### 文件 4-3：`face_vision/detector_protocol.py`（新写）
+### 文件 4-3：`face_hub/detector_protocol.py`（新写）
 
 ```python
 """
 Detector protocol — abstract interface for face detection + embedding.
 
-Built-in implementation: face_vision.engine.face_detector.FaceDetector (insightface).
+Built-in implementation: face_hub.engine.face_detector.FaceDetector (insightface).
 Users can implement this protocol to plug in custom models (YOLO, MediaPipe,
 commercial SDK, etc.) without modifying the rest of the pipeline.
 """
@@ -791,7 +791,7 @@ from __future__ import annotations
 from typing import Protocol, List, runtime_checkable
 import numpy as np
 
-from face_vision.types import DetectionResult, DetectionWithEmbedding
+from face_hub.types import DetectionResult, DetectionWithEmbedding
 
 
 @runtime_checkable
@@ -800,7 +800,7 @@ class DetectorProtocol(Protocol):
     Protocol for face detection and embedding extraction.
 
     Any object implementing these three methods can be passed to
-    FaceVisionPipeline as the detector.
+    FaceHubPipeline as the detector.
 
     Minimal implementation: just implement detect_with_embeddings().
     detect() and reload_model() have default no-op fallbacks.
@@ -849,7 +849,7 @@ class DetectorProtocol(Protocol):
 
 > **使用示例（用户自定义检测器）：**
 > ```python
-> from face_vision import DetectorProtocol, DetectionWithEmbedding, BBox
+> from face_hub import DetectorProtocol, DetectionWithEmbedding, BBox
 >
 > class MyYoloDetector:
 >     """Use YOLOv8-face + a custom recognition model."""
@@ -876,7 +876,7 @@ class DetectorProtocol(Protocol):
 >         return [DetectionResult(bbox=..., confidence=...) for ...]
 >
 > # Plug into pipeline:
-> pipeline = FaceVisionPipeline(
+> pipeline = FaceHubPipeline(
 >     camera, MyYoloDetector(), recognizer, tracker, db
 > )
 > ```
@@ -886,7 +886,7 @@ class DetectorProtocol(Protocol):
 > 的对象都自动满足协议，无需显式继承。
 
 
-### 文件 4-4：`face_vision/pipeline.py`（新写）
+### 文件 4-4：`face_hub/pipeline.py`（新写）
 
 ```python
 
@@ -900,24 +900,24 @@ from typing import Optional
 import numpy as np
 
 from typing import List
-from face_vision.types import PipelineResult, DetectionResult, DetectionWithEmbedding
-from face_vision.exceptions import FaceVisionError
-from face_vision.detector_protocol import DetectorProtocol
+from face_hub.types import PipelineResult, DetectionResult, DetectionWithEmbedding
+from face_hub.exceptions import FaceHubError
+from face_hub.detector_protocol import DetectorProtocol
 
-from face_vision.engine.face_recognizer import FaceRecognizer
-from face_vision.engine.face_tracker import FaceTracker
-from face_vision.engine.face_database import FaceDatabase
-from face_vision.engine.camera import CameraThread
+from face_hub.engine.face_recognizer import FaceRecognizer
+from face_hub.engine.face_tracker import FaceTracker
+from face_hub.engine.face_database import FaceDatabase
+from face_hub.engine.camera import CameraThread
 
-logger = logging.getLogger("face_vision.pipeline")
+logger = logging.getLogger("face_hub.pipeline")
 
 
-class FaceVisionPipeline:
+class FaceHubPipeline:
     """
     Full face recognition pipeline.
 
     Usage:
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         pipeline.start()
 
         while True:
@@ -1062,10 +1062,10 @@ class FaceVisionPipeline:
                 fps=self._current_fps,
             )
 
-        except FaceVisionError:
+        except FaceHubError:
             raise
         except Exception as e:
-            raise FaceVisionError(f"Pipeline processing failed: {e}") from e
+            raise FaceHubError(f"Pipeline processing failed: {e}") from e
 
     # ── Convenience methods ──────────────────────────────────────
 
@@ -1082,36 +1082,36 @@ class FaceVisionPipeline:
 
 ---
 
-### 文件 4-5：`face_vision/__init__.py`
+### 文件 4-5：`face_hub/__init__.py`
 
 ```python
 """
 FaceVision — Real-time Face Recognition Library
 
 Usage:
-    from face_vision import (
-        FaceVisionPipeline, FaceDetector, FaceRecognizer,
+    from face_hub import (
+        FaceHubPipeline, FaceDetector, FaceRecognizer,
         CameraThread, FaceTracker, FaceDatabase,
     )
-    from face_vision.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
+    from face_hub.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
 """
 
 __version__ = "1.0.0"
 __author__ = "AllenDeng"
 
 # ── Core components (from engine subpackage) ─────────────────
-from face_vision.engine.camera import CameraThread
-from face_vision.engine.face_detector import FaceDetector
-from face_vision.engine.face_recognizer import FaceRecognizer
-from face_vision.engine.face_tracker import FaceTracker
-from face_vision.engine.face_database import FaceDatabase
+from face_hub.engine.camera import CameraThread
+from face_hub.engine.face_detector import FaceDetector
+from face_hub.engine.face_recognizer import FaceRecognizer
+from face_hub.engine.face_tracker import FaceTracker
+from face_hub.engine.face_database import FaceDatabase
 
-# ── Pipeline (from face_vision/ main package) ───────────────────
-from face_vision.pipeline import FaceVisionPipeline
-from face_vision.detector_protocol import DetectorProtocol
+# ── Pipeline (from face_hub/ main package) ───────────────────
+from face_hub.pipeline import FaceHubPipeline
+from face_hub.detector_protocol import DetectorProtocol
 
 # ── Types ──────────────────────────────────────────────────────
-from face_vision.types import (
+from face_hub.types import (
     UNKNOWN_SENTINEL,
     BBox,
     DetectionResult,
@@ -1121,8 +1121,8 @@ from face_vision.types import (
 )
 
 # ── Exceptions ─────────────────────────────────────────────────
-from face_vision.exceptions import (
-    FaceVisionError,
+from face_hub.exceptions import (
+    FaceHubError,
     ModelLoadError,
     InferenceError,
     CameraError,
@@ -1131,7 +1131,7 @@ from face_vision.exceptions import (
 )
 
 # ── Config ─────────────────────────────────────────────────────
-from face_vision.engine.config import DEFAULT_SETTINGS, get_default_settings
+from face_hub.engine.config import DEFAULT_SETTINGS, get_default_settings
 
 __all__ = [
     # Core
@@ -1140,7 +1140,7 @@ __all__ = [
     "FaceRecognizer",
     "FaceTracker",
     "FaceDatabase",
-    "FaceVisionPipeline",
+    "FaceHubPipeline",
     "DetectorProtocol",
     # Types
     "UNKNOWN_SENTINEL",
@@ -1150,7 +1150,7 @@ __all__ = [
     "TrackedFace",
     "PipelineResult",
     # Exceptions
-    "FaceVisionError",
+    "FaceHubError",
     "ModelLoadError",
     "InferenceError",
     "CameraError",
@@ -1215,7 +1215,7 @@ def temp_db_paths():
 """Test dataclass types and UNKNOWN_SENTINEL."""
 
 import numpy as np
-from face_vision.types import (
+from face_hub.types import (
     UNKNOWN_SENTINEL, BBox, DetectionResult,
     DetectionWithEmbedding, TrackedFace, PipelineResult,
 )
@@ -1312,8 +1312,8 @@ class TestUnknownSentinel:
 ```python
 """Test exception hierarchy."""
 
-from face_vision.exceptions import (
-    FaceVisionError, ModelLoadError, InferenceError,
+from face_hub.exceptions import (
+    FaceHubError, ModelLoadError, InferenceError,
     CameraError, DatabaseError, RecognitionError,
 )
 
@@ -1322,12 +1322,12 @@ class TestExceptionHierarchy:
     def test_all_inherit_from_base(self):
         for cls in [ModelLoadError, InferenceError, CameraError,
                      DatabaseError, RecognitionError]:
-            assert issubclass(cls, FaceVisionError)
+            assert issubclass(cls, FaceHubError)
 
     def test_catch_by_base(self):
         try:
             raise ModelLoadError("test")
-        except FaceVisionError:
+        except FaceHubError:
             pass  # should catch
         else:
             assert False
@@ -1348,7 +1348,7 @@ class TestExceptionHierarchy:
 ```python
 """Test config constants."""
 
-from face_vision import DEFAULT_SETTINGS, get_default_settings
+from face_hub import DEFAULT_SETTINGS, get_default_settings
 
 
 class TestDefaultSettings:
@@ -1375,7 +1375,7 @@ class TestDefaultSettings:
 """Test FaceDatabase CRUD and persistence."""
 
 import numpy as np
-from face_vision import FaceDatabase
+from face_hub import FaceDatabase
 
 
 class TestFaceDatabase:
@@ -1461,7 +1461,7 @@ class TestFaceDatabase:
 """Test FaceRecognizer cosine similarity matching and cache."""
 
 import numpy as np
-from face_vision import FaceRecognizer, UNKNOWN_SENTINEL
+from face_hub import FaceRecognizer, UNKNOWN_SENTINEL
 
 
 def make_encoding(seed=42):
@@ -1530,7 +1530,7 @@ class TestFaceRecognizer:
 """Test FaceTracker IoU matching, majority vote, identity confirmation."""
 
 import numpy as np
-from face_vision import FaceTracker, UNKNOWN_SENTINEL, BBox, DetectionWithEmbedding
+from face_hub import FaceTracker, UNKNOWN_SENTINEL, BBox, DetectionWithEmbedding
 
 
 def make_detection(x1, y1, x2, y2, embedding=None, quality=True):
@@ -1606,7 +1606,7 @@ Run locally only: pytest tests/test_face_detector.py
 """
 import pytest
 import numpy as np
-from face_vision import FaceDetector
+from face_hub import FaceDetector
 
 
 class TestFaceDetectorConstruction:
@@ -1638,11 +1638,11 @@ class TestFaceDetectorConstruction:
 ### 5.9 `tests/test_pipeline.py`
 
 ```python
-"""Test FaceVisionPipeline integration (using mock camera)."""
+"""Test FaceHubPipeline integration (using mock camera)."""
 
 import numpy as np
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, PipelineResult,
 )
 
@@ -1668,7 +1668,7 @@ class TestPipeline:
         recognizer = FaceRecognizer(tolerance=0.45)
         tracker = FaceTracker(smooth_frames=3)
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         assert pipeline.is_running is False
 
     def test_start_stop(self, temp_db_paths):
@@ -1679,7 +1679,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         pipeline.start()
         assert pipeline.is_running is True
         pipeline.stop()
@@ -1693,7 +1693,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         # process_frame with explicit frame (no camera needed)
         result = pipeline.process_frame(frame=sample_frame)
         assert isinstance(result, PipelineResult)
@@ -1707,7 +1707,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         results = pipeline.detect_only(sample_frame)
         assert isinstance(results, list)
 
@@ -1719,7 +1719,7 @@ class TestPipeline:
         recognizer = FaceRecognizer()
         tracker = FaceTracker()
 
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         db.add_person("Test", "/tmp/test.jpg", sample_encoding)
         rebuilt = pipeline.update_database_cache()
         assert rebuilt is True
@@ -1733,20 +1733,20 @@ class TestPipeline:
 > **交付门禁：步骤 20 全部测试通过后方可交付。**
 
 ```
-步骤  1: 创建 face_vision/ 目录 + face_vision/engine/ 子目录
+步骤  1: 创建 face_hub/ 目录 + face_hub/engine/ 子目录
 步骤  2: 创建 tests/ 目录
-步骤  3: 创建 face_vision/engine/__init__.py      ← 二 文件3-0
-步骤  4: 创建 face_vision/engine/config.py        ← 二 文件3-1
-步骤  5: 创建 face_vision/engine/camera.py        ← 二 文件3-2
-步骤  6: 创建 face_vision/engine/face_detector.py ← 二 文件3-3
-步骤  7: 创建 face_vision/engine/face_recognizer.py ← 二 文件3-4（复制原文件改1行）
-步骤  8: 创建 face_vision/engine/face_tracker.py  ← 二 文件3-5（复制原文件改2处）
-步骤  9: 创建 face_vision/engine/face_database.py ← 二 文件3-6（复制原文件改3处）
-步骤 10: 创建 face_vision/types.py                ← 三 文件4-1
-步骤 11: 创建 face_vision/exceptions.py           ← 三 文件4-2
-步骤 12: 创建 face_vision/detector_protocol.py    ← 三 文件4-3
-步骤 13: 创建 face_vision/pipeline.py             ← 三 文件4-4
-步骤 14: 创建 face_vision/__init__.py             ← 三 文件4-5
+步骤  3: 创建 face_hub/engine/__init__.py      ← 二 文件3-0
+步骤  4: 创建 face_hub/engine/config.py        ← 二 文件3-1
+步骤  5: 创建 face_hub/engine/camera.py        ← 二 文件3-2
+步骤  6: 创建 face_hub/engine/face_detector.py ← 二 文件3-3
+步骤  7: 创建 face_hub/engine/face_recognizer.py ← 二 文件3-4（复制原文件改1行）
+步骤  8: 创建 face_hub/engine/face_tracker.py  ← 二 文件3-5（复制原文件改2处）
+步骤  9: 创建 face_hub/engine/face_database.py ← 二 文件3-6（复制原文件改3处）
+步骤 10: 创建 face_hub/types.py                ← 三 文件4-1
+步骤 11: 创建 face_hub/exceptions.py           ← 三 文件4-2
+步骤 12: 创建 face_hub/detector_protocol.py    ← 三 文件4-3
+步骤 13: 创建 face_hub/pipeline.py             ← 三 文件4-4
+步骤 14: 创建 face_hub/__init__.py             ← 三 文件4-5
 步骤 15: 创建 tests/conftest.py                  ← 四 5.1
 步骤 16: 创建 8 个 tests/test_*.py               ← 四 5.2-5.9
 步骤 17: pip install -e . && pytest tests/ -v --ignore=tests/test_face_detector.py
@@ -1759,23 +1759,23 @@ class TestPipeline:
 ## 六、验证清单
 
 - [ ] `pip install -e .` 成功
-- [ ] `python -c "from face_vision import *"` 无 ImportError
-- [ ] `python -c "from face_vision.types import UNKNOWN_SENTINEL; print(UNKNOWN_SENTINEL)"` → `unknown`
-- [ ] `python -c "from face_vision import FaceVisionError; raise FaceVisionError('test')"` 正常
-- [ ] `python -c "from face_vision import DEFAULT_SETTINGS; print(DEFAULT_SETTINGS['device'])"` → `cuda`
-- [ ] `python -c "from face_vision import FaceDetector; d = FaceDetector(device='cpu', det_size=320)"` 模型加载成功
-- [ ] `python -c "from face_vision import FaceRecognizer; r = FaceRecognizer()"` 无错误
-- [ ] `python -c "from face_vision import FaceDatabase; db = FaceDatabase(db_path='test_db.json'); print(len(db.get_names()))"` → `0`
-- [ ] `python -c "from face_vision import CameraThread; print(CameraThread.list_cameras())"` 列出摄像头
-- [ ] `python -c "from face_vision import FaceVisionPipeline"` 无 ImportError
-- [ ] `python -c "from face_vision import BBox, DetectionResult, DetectionWithEmbedding, TrackedFace, PipelineResult"` 全部可导入
+- [ ] `python -c "from face_hub import *"` 无 ImportError
+- [ ] `python -c "from face_hub.types import UNKNOWN_SENTINEL; print(UNKNOWN_SENTINEL)"` → `unknown`
+- [ ] `python -c "from face_hub import FaceHubError; raise FaceHubError('test')"` 正常
+- [ ] `python -c "from face_hub import DEFAULT_SETTINGS; print(DEFAULT_SETTINGS['device'])"` → `cuda`
+- [ ] `python -c "from face_hub import FaceDetector; d = FaceDetector(device='cpu', det_size=320)"` 模型加载成功
+- [ ] `python -c "from face_hub import FaceRecognizer; r = FaceRecognizer()"` 无错误
+- [ ] `python -c "from face_hub import FaceDatabase; db = FaceDatabase(db_path='test_db.json'); print(len(db.get_names()))"` → `0`
+- [ ] `python -c "from face_hub import CameraThread; print(CameraThread.list_cameras())"` 列出摄像头
+- [ ] `python -c "from face_hub import FaceHubPipeline"` 无 ImportError
+- [ ] `python -c "from face_hub import BBox, DetectionResult, DetectionWithEmbedding, TrackedFace, PipelineResult"` 全部可导入
 - [ ] **`pytest tests/ -v` 全部通过（交付门禁）**
 
 ---
 
 ## 七、注意事项
 
-1. **单一顶层包：** `face_vision/` 是唯一 Python 包；`engine/` 子包包含全部核心算法。引擎模块从 `face_vision.types` / `face_vision.exceptions` 导入类型和异常
+1. **单一顶层包：** `face_hub/` 是唯一 Python 包；`engine/` 子包包含全部核心算法。引擎模块从 `face_hub.types` / `face_hub.exceptions` 导入类型和异常
 2. **多平台摄像头：** `CameraThread._get_backend()` 自动按平台选择 DShow(Win) / AVFoundation(macOS) / V4L2(Linux)
 3. **v1.0 多平台 GPU：** `FaceDetector._resolve_providers()` 优先级 CUDA → DirectML(Win) → CPU；macOS 仅 CPU（CoreML 延后 v1.1）
 4. **insightface 模型：** 自动下载到 `~/.insightface`，全平台一致
@@ -1886,7 +1886,7 @@ insightface 模型    → 非商用研究目的  ⚠️ 不可商用
 | 类型注解 | 所有公开方法必须有参数类型和返回值类型注解 |
 | 逗号尾随 | 多行列表/字典最后一项加逗号 |
 | 字符串 | 统一双引号 `"..."`，docstring 用三重双引号 `"""..."""` |
-| 异常 | 抛自定义异常（`FaceVisionError` 子类），不抛裸 `Exception` / `print`后继续 |
+| 异常 | 抛自定义异常（`FaceHubError` 子类），不抛裸 `Exception` / `print`后继续 |
 
 ### 9.3 示例
 
@@ -2111,7 +2111,7 @@ nav:
 | 首页 | `zh/index.md` | `en/index.md` | 项目介绍、特性、平台支持 |
 | 安装 | `zh/installation.md` | `en/installation.md` | pip install、GPU 选装、平台说明 |
 | 快速开始 | `zh/quickstart.md` | `en/quickstart.md` | 5 分钟跑通完整流程 |
-| Pipeline | `zh/api/pipeline.md` | `en/api/pipeline.md` | FaceVisionPipeline 全部方法 |
+| Pipeline | `zh/api/pipeline.md` | `en/api/pipeline.md` | FaceHubPipeline 全部方法 |
 | 检测器 | `zh/api/detector.md` | `en/api/detector.md` | FaceDetector + DetectorProtocol |
 | 识别器 | `zh/api/recognizer.md` | `en/api/recognizer.md` | FaceRecognizer + 阈值调参 |
 | 追踪器 | `zh/api/tracker.md` | `en/api/tracker.md` | FaceTracker + IoU/投票算法说明 |
@@ -2135,8 +2135,8 @@ pip install facevision
 
 ## 5 分钟示例
 
-from face_vision import (
-    FaceVisionPipeline, FaceDetector, FaceRecognizer,
+from face_hub import (
+    FaceHubPipeline, FaceDetector, FaceRecognizer,
     FaceTracker, FaceDatabase, CameraThread,
 )
 
@@ -2148,7 +2148,7 @@ tracker = FaceTracker(smooth_frames=5)
 camera = CameraThread(camera_id=0, width=640, height=360)
 
 # 2. 组装流水线
-pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
 pipeline.start()
 
 # 3. 循环处理
@@ -2217,14 +2217,14 @@ pipeline.stop()
 实现 `DetectorProtocol` 接口即可接入自有模型：
 
 ```python
-from face_vision import DetectorProtocol, DetectionWithEmbedding, BBox
+from face_hub import DetectorProtocol, DetectionWithEmbedding, BBox
 
 class MyDetector:
     def detect_with_embeddings(self, frame):
         ...  # 你的检测 + 特征提取逻辑
         return [DetectionWithEmbedding(...)]
 
-pipeline = FaceVisionPipeline(camera, MyDetector(), ...)
+pipeline = FaceHubPipeline(camera, MyDetector(), ...)
 ```
 ````
 
@@ -2290,7 +2290,7 @@ pipeline = FaceVisionPipeline(camera, MyDetector(), ...)
 
 ## PipelineResult
 
-`FaceVisionPipeline.process_frame()` 的完整返回。
+`FaceHubPipeline.process_frame()` 的完整返回。
 
 | 属性 | 类型 | 说明 |
 |------|------|------|

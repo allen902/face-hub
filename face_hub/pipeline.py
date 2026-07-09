@@ -8,24 +8,24 @@ from typing import Optional
 import numpy as np
 
 from typing import List
-from face_vision.types import PipelineResult, DetectionResult, DetectionWithEmbedding
-from face_vision.exceptions import FaceVisionError
-from face_vision.detector_protocol import DetectorProtocol
+from face_hub.types import PipelineResult, DetectionResult, DetectionWithEmbedding
+from face_hub.exceptions import FaceHubError
+from face_hub.detector_protocol import DetectorProtocol
 
-from face_vision.engine.face_recognizer import FaceRecognizer
-from face_vision.engine.face_tracker import FaceTracker
-from face_vision.engine.face_database import FaceDatabase
-from face_vision.engine.camera import CameraThread
+from face_hub.engine.face_recognizer import FaceRecognizer
+from face_hub.engine.face_tracker import FaceTracker
+from face_hub.engine.face_database import FaceDatabase
+from face_hub.engine.camera import CameraThread
 
-logger = logging.getLogger("face_vision.pipeline")
+logger = logging.getLogger("face_hub.pipeline")
 
 
-class FaceVisionPipeline:
+class FaceHubPipeline:
     """
     Full face recognition pipeline.
 
     Usage:
-        pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+        pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
         pipeline.start()
 
         while True:
@@ -170,10 +170,10 @@ class FaceVisionPipeline:
                 fps=self._current_fps,
             )
 
-        except FaceVisionError:
+        except FaceHubError:
             raise
         except Exception as e:
-            raise FaceVisionError(f"Pipeline processing failed: {e}") from e
+            raise FaceHubError(f"Pipeline processing failed: {e}") from e
 
     # ── Convenience methods ──────────────────────────────────────
 

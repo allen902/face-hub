@@ -13,10 +13,10 @@ import logging
 import cv2
 import numpy as np
 
-from face_vision.types import DetectionResult, DetectionWithEmbedding, BBox
-from face_vision.exceptions import ModelLoadError, InferenceError
+from face_hub.types import DetectionResult, DetectionWithEmbedding, BBox
+from face_hub.exceptions import ModelLoadError, InferenceError
 
-logger = logging.getLogger("face_vision.detector")
+logger = logging.getLogger("face_hub.detector")
 
 
 class FaceDetector:

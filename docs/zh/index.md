@@ -1,6 +1,6 @@
-# FaceVision
+# FaceHub
 
-FaceVision 是一个实时人脸识别 Python 库，提供无 GUI、可独立使用的检测、
+FaceHub 是一个实时人脸识别 Python 库，提供无 GUI、可独立使用的检测、
 特征提取、识别、追踪与摄像头采集能力。
 
 ## 特性

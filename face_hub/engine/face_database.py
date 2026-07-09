@@ -12,9 +12,9 @@ from pathlib import Path
 
 import numpy as np
 
-from face_vision.exceptions import DatabaseError
+from face_hub.exceptions import DatabaseError
 
-logger = logging.getLogger("face_vision.database")
+logger = logging.getLogger("face_hub.database")
 
 
 class FaceDatabase:

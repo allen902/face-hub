@@ -5,7 +5,7 @@ Run locally only: pytest tests/test_face_detector.py
 """
 import pytest
 import numpy as np
-from face_vision import FaceDetector
+from face_hub import FaceDetector
 
 
 class TestFaceDetectorConstruction:

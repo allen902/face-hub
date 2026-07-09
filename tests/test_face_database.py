@@ -1,7 +1,7 @@
 """Test FaceDatabase CRUD and persistence."""
 
 import numpy as np
-from face_vision import FaceDatabase
+from face_hub import FaceDatabase
 
 
 class TestFaceDatabase:

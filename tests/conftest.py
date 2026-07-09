@@ -1,5 +1,5 @@
 """
-Shared pytest fixtures for FaceVision tests.
+Shared pytest fixtures for FaceHub tests.
 """
 import pytest
 import numpy as np

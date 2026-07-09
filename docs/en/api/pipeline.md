@@ -1,4 +1,4 @@
-# FaceVisionPipeline
+# FaceHubPipeline
 
 Full pipeline integrating camera, detector, recognizer, tracker, and database.
 

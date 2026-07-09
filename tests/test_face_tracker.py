@@ -1,7 +1,7 @@
 """Test FaceTracker IoU matching, majority vote, identity confirmation."""
 
 import numpy as np
-from face_vision import FaceTracker, UNKNOWN_SENTINEL, BBox, DetectionWithEmbedding
+from face_hub import FaceTracker, UNKNOWN_SENTINEL, BBox, DetectionWithEmbedding
 
 
 def make_detection(x1, y1, x2, y2, embedding=None, quality=True):

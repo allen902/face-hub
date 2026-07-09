@@ -55,7 +55,7 @@ Single tracking result from `FaceTracker.update()`.
 
 ## PipelineResult
 
-Full result from `FaceVisionPipeline.process_frame()`.
+Full result from `FaceHubPipeline.process_frame()`.
 
 | Attribute | Type | Description |
 |-----------|------|-------------|

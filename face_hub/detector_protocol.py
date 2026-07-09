@@ -1,7 +1,7 @@
 """
 Detector protocol — abstract interface for face detection + embedding.
 
-Built-in implementation: face_vision.engine.face_detector.FaceDetector (insightface).
+Built-in implementation: face_hub.engine.face_detector.FaceDetector (insightface).
 Users can implement this protocol to plug in custom models (YOLO, MediaPipe,
 commercial SDK, etc.) without modifying the rest of the pipeline.
 """
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Protocol, List, runtime_checkable
 import numpy as np
 
-from face_vision.types import DetectionResult, DetectionWithEmbedding
+from face_hub.types import DetectionResult, DetectionWithEmbedding
 
 
 @runtime_checkable
@@ -20,7 +20,7 @@ class DetectorProtocol(Protocol):
     Protocol for face detection and embedding extraction.
 
     Any object implementing these three methods can be passed to
-    FaceVisionPipeline as the detector.
+    FaceHubPipeline as the detector.
 
     Minimal implementation: just implement detect_with_embeddings().
     detect() and reload_model() have default no-op fallbacks.

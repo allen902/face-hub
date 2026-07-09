@@ -12,9 +12,9 @@ How it works:
 import numpy as np
 import logging
 
-from face_vision.types import UNKNOWN_SENTINEL, TrackedFace, BBox
+from face_hub.types import UNKNOWN_SENTINEL, TrackedFace, BBox
 
-logger = logging.getLogger("face_vision.tracker")
+logger = logging.getLogger("face_hub.tracker")
 
 
 def _iou(boxA, boxB):

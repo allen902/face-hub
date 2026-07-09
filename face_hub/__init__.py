@@ -1,30 +1,30 @@
 """
-FaceVision — Real-time Face Recognition Library
+FaceHub — Real-time Face Recognition Library
 
 Usage:
-    from face_vision import (
-        FaceVisionPipeline, FaceDetector, FaceRecognizer,
+    from face_hub import (
+        FaceHubPipeline, FaceDetector, FaceRecognizer,
         CameraThread, FaceTracker, FaceDatabase,
     )
-    from face_vision.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
+    from face_hub.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
 """
 
 __version__ = "1.0.0"
 __author__ = "AllenDeng"
 
 # ── Core components (from engine subpackage) ─────────────────
-from face_vision.engine.camera import CameraThread
-from face_vision.engine.face_detector import FaceDetector
-from face_vision.engine.face_recognizer import FaceRecognizer
-from face_vision.engine.face_tracker import FaceTracker
-from face_vision.engine.face_database import FaceDatabase
+from face_hub.engine.camera import CameraThread
+from face_hub.engine.face_detector import FaceDetector
+from face_hub.engine.face_recognizer import FaceRecognizer
+from face_hub.engine.face_tracker import FaceTracker
+from face_hub.engine.face_database import FaceDatabase
 
-# ── Pipeline (from face_vision/ main package) ───────────────────
-from face_vision.pipeline import FaceVisionPipeline
-from face_vision.detector_protocol import DetectorProtocol
+# ── Pipeline (from face_hub/ main package) ─────────────────────
+from face_hub.pipeline import FaceHubPipeline
+from face_hub.detector_protocol import DetectorProtocol
 
 # ── Types ──────────────────────────────────────────────────────
-from face_vision.types import (
+from face_hub.types import (
     UNKNOWN_SENTINEL,
     BBox,
     DetectionResult,
@@ -34,8 +34,8 @@ from face_vision.types import (
 )
 
 # ── Exceptions ─────────────────────────────────────────────────
-from face_vision.exceptions import (
-    FaceVisionError,
+from face_hub.exceptions import (
+    FaceHubError,
     ModelLoadError,
     InferenceError,
     CameraError,
@@ -44,7 +44,7 @@ from face_vision.exceptions import (
 )
 
 # ── Config ─────────────────────────────────────────────────────
-from face_vision.engine.config import DEFAULT_SETTINGS, get_default_settings
+from face_hub.engine.config import DEFAULT_SETTINGS, get_default_settings
 
 __all__ = [
     # Core
@@ -53,7 +53,7 @@ __all__ = [
     "FaceRecognizer",
     "FaceTracker",
     "FaceDatabase",
-    "FaceVisionPipeline",
+    "FaceHubPipeline",
     "DetectorProtocol",
     # Types
     "UNKNOWN_SENTINEL",
@@ -63,7 +63,7 @@ __all__ = [
     "TrackedFace",
     "PipelineResult",
     # Exceptions
-    "FaceVisionError",
+    "FaceHubError",
     "ModelLoadError",
     "InferenceError",
     "CameraError",

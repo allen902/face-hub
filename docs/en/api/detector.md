@@ -46,12 +46,12 @@ Reload the model at runtime with a new input size.
 Implement `DetectorProtocol` to use your own model:
 
 ```python
-from face_vision import DetectorProtocol, DetectionWithEmbedding, BBox
+from face_hub import DetectorProtocol, DetectionWithEmbedding, BBox
 
 class MyDetector:
     def detect_with_embeddings(self, frame):
         ...  # your detection + embedding logic
         return [DetectionWithEmbedding(...)]
 
-pipeline = FaceVisionPipeline(camera, MyDetector(), ...)
+pipeline = FaceHubPipeline(camera, MyDetector(), ...)
 ```

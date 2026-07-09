@@ -1,4 +1,4 @@
-# FaceVisionPipeline
+# FaceHubPipeline
 
 整合摄像头、检测器、识别器、追踪器与数据库的完整流水线。
 

@@ -1,5 +1,5 @@
 """
-FaceVision type definitions.
+FaceHub type definitions.
 All public API return types are dataclasses defined here.
 """
 
@@ -16,7 +16,7 @@ import numpy as np
 UNKNOWN_SENTINEL = "unknown"
 """
 Stable sentinel for "not recognized as any registered person".
-Import via: from face_vision.types import UNKNOWN_SENTINEL
+Import via: from face_hub.types import UNKNOWN_SENTINEL
 """
 
 
@@ -108,7 +108,7 @@ class TrackedFace:
 @dataclass
 class PipelineResult:
     """
-    Returned by FaceVisionPipeline.process_frame().
+    Returned by FaceHubPipeline.process_frame().
     """
     frame: np.ndarray = field(repr=False)
     raw_detections: List[DetectionWithEmbedding] = field(default_factory=list)

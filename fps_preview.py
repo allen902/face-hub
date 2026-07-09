@@ -19,13 +19,13 @@ from collections import deque
 import cv2
 import numpy as np
 
-from face_vision import (
+from face_hub import (
     CameraThread,
     FaceDatabase,
     FaceDetector,
     FaceRecognizer,
     FaceTracker,
-    FaceVisionPipeline,
+    FaceHubPipeline,
 )
 
 
@@ -80,7 +80,7 @@ def draw_overlay(
 
 def run_preview(args: argparse.Namespace) -> None:
     """主循环：采集 → 推理 → 显示。"""
-    print("Initializing FaceVision FPS preview...")
+    print("Initializing FaceHub FPS preview...")
     print(f"  resolution: {args.width}x{args.height}")
     print(f"  device:     {args.device}")
     print(f"  det_size:   {args.det_size}")
@@ -106,7 +106,7 @@ def run_preview(args: argparse.Namespace) -> None:
         encoding_path=args.encoding_path,
     )
 
-    pipeline = FaceVisionPipeline(camera, detector, recognizer, tracker, db)
+    pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
     pipeline.start()
 
     # 体感平滑：最近 30 帧的 UI 刷新间隔
@@ -145,7 +145,7 @@ def run_preview(args: argparse.Namespace) -> None:
                 latency_ms=sum(latency_window) / len(latency_window),
             )
 
-            cv2.imshow("FaceVision FPS Preview (q/ESC to quit)", overlay)
+            cv2.imshow("FaceHub FPS Preview (q/ESC to quit)", overlay)
 
             # 每秒在终端输出一次，方便后台观察或截图对比
             if now - last_log_time >= 1.0:
@@ -169,7 +169,7 @@ def run_preview(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="FaceVision FPS perceptual preview")
+    parser = argparse.ArgumentParser(description="FaceHub FPS perceptual preview")
     parser.add_argument("--camera", type=int, default=0, help="camera index")
     parser.add_argument("--width", type=int, default=640, help="frame width")
     parser.add_argument("--height", type=int, default=360, help="frame height")

@@ -20,7 +20,7 @@ from collections import deque
 if sys.platform == "win32":
     os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
 
-logger = logging.getLogger("face_vision.camera")
+logger = logging.getLogger("face_hub.camera")
 
 
 class CameraThread:
@@ -73,7 +73,7 @@ class CameraThread:
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
         if not self.cap.isOpened():
-            from face_vision.exceptions import CameraError
+            from face_hub.exceptions import CameraError
             raise CameraError(f"Cannot open camera (ID={self.camera_id})")
 
         actual_w = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)

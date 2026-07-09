@@ -1,12 +1,12 @@
 # Exceptions
 
-FaceVision uses a custom exception hierarchy. All exceptions inherit from
-`FaceVisionError`.
+FaceHub uses a custom exception hierarchy. All exceptions inherit from
+`FaceHubError`.
 
 ## Hierarchy
 
 ```
-FaceVisionError
+FaceHubError
 ├── ModelLoadError
 ├── InferenceError
 ├── CameraError
@@ -27,10 +27,10 @@ FaceVisionError
 ## Catching Errors
 
 ```python
-from face_vision.exceptions import FaceVisionError
+from face_hub.exceptions import FaceHubError
 
 try:
     detector = FaceDetector(device="cpu")
-except FaceVisionError as e:
-    print(f"FaceVision error: {e}")
+except FaceHubError as e:
+    print(f"FaceHub error: {e}")
 ```

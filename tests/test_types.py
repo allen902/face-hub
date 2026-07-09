@@ -1,7 +1,7 @@
 """Test dataclass types and UNKNOWN_SENTINEL."""
 
 import numpy as np
-from face_vision.types import (
+from face_hub.types import (
     UNKNOWN_SENTINEL, BBox, DetectionResult,
     DetectionWithEmbedding, TrackedFace, PipelineResult,
 )
