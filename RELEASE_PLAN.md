@@ -1,6 +1,7 @@
 # FaceVision v1.0 — 打包发布计划
 
-> **目标：** 定义 `facevision` 的 PyPI 打包配置、CI/CD 流水线、README 内容和发版流程。
+> **目标：** 定义 `face-vision` 的 PyPI 打包配置、CI/CD 流水线、README 内容和发版流程。
+> **PyPI 项目名：** `face-vision`（`pip install face-vision` → `import face_vision`，`-` / `_` 自动归一化）
 > **关联：** 代码结构见 [REFACTOR_PLAN.md](REFACTOR_PLAN.md)，开发者指南见 [DEVELOPER.md](DEVELOPER.md)
 
 ---
@@ -15,7 +16,7 @@ requires = ["setuptools>=75.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "facevision"
+name = "face-vision"
 version = "1.0.0"
 description = "Real-time face recognition library — RetinaFace detection + ArcFace recognition + IoU tracking"
 readme = "README.md"
@@ -46,8 +47,8 @@ dependencies = [
 [project.optional-dependencies]
 # ⚠️ GPU extras require MANUALLY uninstalling onnxruntime first:
 #   pip uninstall onnxruntime
-#   pip install facevision[gpu-win]   # Windows
-#   pip install facevision[gpu-linux] # Linux
+#   pip install face-vision[gpu-win]   # Windows
+#   pip install face-vision[gpu-linux] # Linux
 # This is because onnxruntime / onnxruntime-directml / onnxruntime-gpu
 # install to the same directory and conflict.
 
@@ -267,7 +268,7 @@ jobs:
 
 ### 2.3 PyPI Trusted Publishing 首次配置
 
-1. 登录 [pypi.org](https://pypi.org) → 进入 `facevision` 项目 → **Settings** → **Trusted Publisher Management**
+1. 登录 [pypi.org](https://pypi.org) → 进入 `face-vision` 项目 → **Settings** → **Trusted Publisher Management**
 2. 添加：
    - **Owner:** `allen902`
    - **Repository:** `FaceVision`
@@ -397,7 +398,7 @@ twine check dist/*
 # ── Step 3: 试安装验证（可选，在虚拟环境中） ──
 python -m venv /tmp/test-release
 source /tmp/test-release/bin/activate  # Windows: \tmp\test-release\Scripts\activate
-pip install dist/facevision-1.0.0-py3-none-any.whl
+pip install dist/face_vision-1.0.0-py3-none-any.whl
 python -c "from face_vision import FaceDetector; d = FaceDetector(device='cpu', det_size=320); print('OK')"
 deactivate
 
@@ -413,17 +414,17 @@ git push origin main --tags
 
 # ── Step 6: 手动发布到 TestPyPI（可选，预验证） ──
 twine upload --repository testpypi dist/*
-pip install -i https://test.pypi.org/simple/ facevision
+pip install -i https://test.pypi.org/simple/ face-vision
 ```
 
 ### 6.3 发布后验证
 
 ```bash
 # 1. PyPI 页面可访问
-#    https://pypi.org/project/facevision/
+#    https://pypi.org/project/face-vision/
 
 # 2. pip 安装验证（新环境）
-pip install facevision
+pip install face-vision
 python -c "
 from face_vision import (
     FaceVisionPipeline, FaceDetector, FaceRecognizer,
@@ -434,7 +435,7 @@ print('All imports OK')
 
 # 3. GPU 安装验证（Windows）
 pip uninstall -y onnxruntime
-pip install facevision[gpu-win]
+pip install face-vision[gpu-win]
 python -c "from face_vision import FaceDetector; d = FaceDetector(device='auto', det_size=320); print('GPU OK')"
 
 # 4. 文档可访问
@@ -450,7 +451,7 @@ python -c "from face_vision import FaceDetector; d = FaceDetector(device='auto',
 
 ```bash
 # 1. 从 PyPI 移除该版本（yank，不禁用已安装的）
-#    在 https://pypi.org/manage/project/facevision/releases/ 操作
+#    在 https://pypi.org/manage/project/face-vision/releases/ 操作
 
 # 2. 在 GitHub Release 页面标记为 pre-release 或删除
 
@@ -623,7 +624,7 @@ mkdocs gh-deploy --force
 | 虚拟环境安装测试 | — | 新 venv 中 `pip install dist/*.whl` + import 测试 | ⬜ |
 | 打 tag | — | `git tag -a v1.0.0` 推送成功 | ⬜ |
 | CI 全绿 | — | GitHub Actions all green → PyPI published | ⬜ |
-| PyPI 验证 | — | `pip install facevision` 从 PyPI 成功安装 | ⬜ |
+| PyPI 验证 | — | `pip install face-vision` 从 PyPI 成功安装 | ⬜ |
 | 文档上线 | — | `https://allen902.github.io/FaceVision/` 可访问 | ⬜ |
 | GitHub Release | — | Release 页面包含 changelog 摘要 + artifact links | ⬜ |
 
@@ -648,13 +649,13 @@ python -m readme_renderer README.md
 
 **解决：** 等待 10-15 分钟后重试，或指定版本号：
 ```bash
-pip install facevision==1.0.0
+pip install face-vision==1.0.0
 ```
 
 ### Q3: Trusted Publishing 失败（403）？
 
 **排查：**
-1. PyPI 项目名 `facevision` 是否已注册（需先在 PyPI 手动创建项目）
+1. PyPI 项目名 `face-vision` 是否已注册（需先在 PyPI 手动创建项目）
 2. Trusted Publisher 配置是否正确（Owner → Repo → Workflow 三者匹配）
 3. GitHub Actions 日志中 OIDC token 是否成功获取
 
@@ -663,17 +664,17 @@ pip install facevision==1.0.0
 这是已知问题，已在 README 中说明。用户需要：
 ```bash
 pip uninstall onnxruntime
-pip install facevision[gpu-win]
+pip install face-vision[gpu-win]
 ```
 因为两者安装到同一个 `onnxruntime/` 目录，无法共存。
 
 ### Q5: 发布后本地 `pip install -e .` 的行为变了？
 
-`pip install -e .` (editable install) 和 `pip install facevision` (PyPI release) 安装方式不同：
+`pip install -e .` (editable install) 和 `pip install face-vision` (PyPI release) 安装方式不同：
 - editable: `face_vision/` 目录作为 symlink → 修改代码立即生效
 - release: 复制到 `site-packages/` → 需重新安装才能更新
 
-本地开发始终用 `pip install -e .`；CI 和用户始终用 `pip install facevision`。
+本地开发始终用 `pip install -e .`；CI 和用户始终用 `pip install face-vision`。
 
 ---
 

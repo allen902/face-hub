@@ -18,7 +18,7 @@
 ## Installation
 
 ```bash
-pip install facevision
+pip install face-vision
 ```
 
 Optional GPU backends:
@@ -26,11 +26,11 @@ Optional GPU backends:
 ```bash
 # Windows DirectML
 pip uninstall -y onnxruntime
-pip install facevision[gpu-win]
+pip install face-vision[gpu-win]
 
 # Linux NVIDIA CUDA
 pip uninstall -y onnxruntime
-pip install facevision[gpu-linux]
+pip install face-vision[gpu-linux]
 ```
 
 ## Quick Start
@@ -120,7 +120,7 @@ The FaceVision **code** is released under the [MIT License](LICENSE).
 ## 安装
 
 ```bash
-pip install facevision
+pip install face-vision
 ```
 
 可选 GPU 后端：
@@ -128,11 +128,11 @@ pip install facevision
 ```bash
 # Windows DirectML
 pip uninstall -y onnxruntime
-pip install facevision[gpu-win]
+pip install face-vision[gpu-win]
 
 # Linux NVIDIA CUDA
 pip uninstall -y onnxruntime
-pip install facevision[gpu-linux]
+pip install face-vision[gpu-linux]
 ```
 
 ## 快速开始
