@@ -1,12 +1,14 @@
 # FaceDatabase
 
-Face database for persisting person records and their 512-dim face embeddings.
+SQLite-backed face registry that stores person names, photo paths, and
+512-dim embeddings. It provides versioned access for cache-aware recognizer
+synchronization.
 
-The database stores:
-- Person metadata (`name`, `image_path`) in a JSON file.
-- Face embeddings in a pickle file.
-- A monotonically increasing `version` that downstream components use to
-  invalidate caches efficiently.
+Key features:
+- Add, update, remove persons
+- List all registered persons
+- Export encodings + names for recognizer cache
+- Automatic database version tracking (integer, incremented on every mutation)
 
 ---
 
@@ -14,138 +16,297 @@ The database stores:
 
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `db_path` | `str` | `"face_db.json"` | JSON file path for person records |
-| `encoding_path` | `str` | `"encodings.pkl"` | Pickle file path for encodings |
+| `db_path` | `str` | `"registry.db"` | Path to the SQLite database file |
 
 ## Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `version` | `int` | Database version, incremented on every write |
+| `version` | `int` | Current database version; incremented on every add/update/remove |
 
 ## Methods
 
-### add_person(name, image_path, encoding)
+### init_db()
 
-Add a person.
+Initialize the database tables. Called automatically on first use. Safe to
+call multiple times — it uses `CREATE TABLE IF NOT EXISTS`.
+
+### add_person(name, photo_path, encoding)
+
+Register a new person.
 
 **Parameters:**
-- `name` (`str`): Unique person name
-- `image_path` (`str`): Path to the reference photo
-- `encoding` (`np.ndarray`): 512-dim face embedding
+- `name` (`str`): Person name (must be unique).
+- `photo_path` (`str`): Path or URI to the person's photo.
+- `encoding` (`np.ndarray`): 512-dim face embedding.
 
 **Returns:**
-- `(bool, str)`: `(success, message)`
+- `(bool, str)`: `(success, message)`. `False` if the name already exists.
+
+### update_person(name, **kwargs)
+
+Update an existing person's record.
+
+**Parameters:**
+- `name` (`str`): Person to update.
+- `**kwargs`: Keyword arguments to update. Supported: `photo_path` (`str`), `encoding` (`np.ndarray`), `new_name` (`str`).
+
+**Returns:**
+- `(bool, str)`: `(success, message)`. `False` if the person does not exist.
 
 ### remove_person(name)
 
-Remove a single person and delete their photo file if it exists.
+Delete a person from the registry.
 
-### remove_persons(names)
-
-Remove multiple persons in one call.
+**Parameters:**
+- `name` (`str`): Person to remove.
 
 **Returns:**
-- `(List[str], List[str])`: `(removed, not_found)`
+- `(bool, str)`: `(success, message)`. `False` if the person does not exist.
 
-### get_names()
+### list_persons()
 
-Return all registered names.
+List all registered persons.
+
+**Returns:**
+- `List[Tuple[str, str]]`: List of `(name, photo_path)` tuples.
+
+### count_persons()
+
+Count registered persons.
+
+**Returns:**
+- `int`
 
 ### get_encodings_and_names()
 
-Return `(encodings, names)`.
+Get all encodings and names for recognizer usage.
 
-### save()
-
-Persist to disk explicitly. Normally called automatically by mutating methods.
-
-### load()
-
-Load from disk. Called automatically on construction.
+**Returns:**
+- `(List[np.ndarray], List[str])`: `(encodings, names)`.
 
 ### clear()
 
-Clear the database and delete persisted files and photos.
+Delete all records from the database.
 
 ---
 
-## Basic CRUD Example
+## Basic CRUD
 
 ```python
 import numpy as np
 from face_hub import FaceDatabase
 
-db = FaceDatabase(db_path="face_db.json", encoding_path="encodings.pkl")
+db = FaceDatabase("my_people.db")
 
-# In practice the encoding comes from FaceDetector.detect_with_embeddings()
-encoding = np.random.randn(512).astype(np.float32)
+# Add
+ok, msg = db.add_person("Alice", "photos/alice.jpg", alice_embedding)
+print(msg)  # "Person 'Alice' added successfully"
 
-ok, msg = db.add_person("Alice", "photos/alice.jpg", encoding)
-print(ok, msg)
+# List
+for name, photo_path in db.list_persons():
+    print(f"{name} ← {photo_path}")
 
-print(db.get_names())  # ['Alice']
+# Update
+ok, msg = db.update_person("Alice", photo_path="photos/alice_new.jpg")
+db.update_person("Alice", encoding=new_encoding)
 
+# Count
+print(f"Total registered: {db.count_persons()}")
+
+# Remove
 ok, msg = db.remove_person("Alice")
-print(ok, msg)
+
+# Clear all
+db.clear()
 ```
 
-## Register from a Real Photo
+## Rename a Person
+
+```python
+ok, msg = db.update_person("Alice", new_name="Alice Smith")
+if ok:
+    print("Renamed successfully")
+```
+
+## Register from Detection
 
 ```python
 import cv2
-import numpy as np
 from face_hub import FaceDetector, FaceDatabase
 
 detector = FaceDetector(device="cpu")
 db = FaceDatabase()
 
-image_path = "alice.jpg"
-frame = cv2.imread(image_path)
-faces = detector.detect_with_embeddings(frame)
+def register_person(name, photo_path):
+    frame = cv2.imread(photo_path)
+    faces = detector.detect_with_embeddings(frame)
 
-if not faces:
-    raise ValueError("No face found")
+    if not faces:
+        return False, "No face detected"
 
-# Use the highest-confidence detection
-face = faces[0]
-if not face.has_embedding:
-    raise ValueError("Failed to extract embedding")
+    face = faces[0]
+    if not face.has_embedding:
+        return False, "Failed to extract embedding"
 
-ok, msg = db.add_person("Alice", image_path, face.embedding)
+    return db.add_person(name, photo_path, face.embedding)
+
+ok, msg = register_person("Bob", "bob.jpg")
 print(msg)
 ```
 
-## Batch Delete
-
-```python
-removed, not_found = db.remove_persons(["Alice", "Bob", "Charlie"])
-print("Removed:", removed)
-print("Not found:", not_found)
-```
-
-## Sync Cache with Recognizer
+## Versioned Cache Sync
 
 ```python
 from face_hub import FaceRecognizer
 
 recognizer = FaceRecognizer()
 encodings, names = db.get_encodings_and_names()
-recognizer.update_cache(encodings, names, db.version)
+
+# The recognizer only rebuilds its internal matrix when version changes
+rebuilt = recognizer.update_cache(encodings, names, db.version)
+
+if rebuilt:
+    print(f"Cache rebuilt — {len(names)} person(s) loaded")
+
+# Subsequent calls with same version are no-ops
+rebuilt = recognizer.update_cache(encodings, names, db.version)
+assert not rebuilt  # no-op
 ```
 
-## Version Bumping
+## Duplicate Name Protection
 
 ```python
-v1 = db.version
-db.add_person("Bob", "bob.jpg", encoding)
-v2 = db.version
-print(v2 > v1)  # True
+ok, msg = db.add_person("Alice", "alice.jpg", alice_emb)
+print(ok, msg)  # True, "Person 'Alice' added successfully"
+
+ok, msg = db.add_person("Alice", "alice2.jpg", alice_emb2)
+print(ok, msg)  # False, "Person 'Alice' already exists"
+
+# Must remove or rename first
+db.remove_person("Alice")
+ok, msg = db.add_person("Alice", "alice2.jpg", alice_emb2)
+print(ok, msg)  # True
 ```
 
-## Clear Everything
+## Update Non-Existent Person
 
 ```python
-db.clear()
-print(db.get_names())  # []
+ok, msg = db.update_person("Nobody", photo_path="nobody.jpg")
+print(msg)  # "Person 'Nobody' does not exist"
 ```
+
+## Working with Multiple Databases
+
+```python
+# Separate registries for different applications
+work_db = FaceDatabase("work_employees.db")
+family_db = FaceDatabase("family_members.db")
+
+# Each has independent versioning
+work_db.add_person("Boss", "boss.jpg", boss_emb)     # work_db.version = 1
+family_db.add_person("Mom", "mom.jpg", mom_emb)       # family_db.version = 1
+```
+
+## Database Inspection
+
+```python
+from face_hub import FaceDatabase
+
+db = FaceDatabase("registry.db")
+
+print(f"Version:      {db.version}")
+print(f"Total persons:{db.count_persons()}")
+
+for name, photo in db.list_persons():
+    print(f"  {name:20s} ← {photo}")
+
+encodings, names = db.get_encodings_and_names()
+print(f"Encodings:    {len(encodings)} vectors of shape {encodings[0].shape}")
+```
+
+## Error Handling
+
+```python
+# Check return value instead of catching exceptions
+ok, msg = db.add_person("Alice", "alice.jpg", emb)
+if not ok:
+    # msg contains a human-readable reason
+    if "already exists" in msg:
+        print("Alice is already registered — use update_person() to modify")
+    else:
+        print(f"Unexpected error: {msg}")
+
+# Remove is idempotent (succeeds if person exists, fails gracefully if not)
+ok, msg = db.remove_person("Ghost")
+if not ok:
+    print(msg)  # "Person 'Ghost' does not exist"
+```
+
+## Complete Registration Workflow
+
+```python
+import cv2
+import numpy as np
+from face_hub import FaceDetector, FaceDatabase
+
+def build_registry_from_folder(photo_dir: str, db_path: str = "registry.db"):
+    """Register all photos in a folder. Each filename becomes the person name."""
+    import os
+    import glob
+
+    detector = FaceDetector(device="auto", det_size=640, confidence=0.60)
+    db = FaceDatabase(db_path)
+
+    patterns = ("*.jpg", "*.jpeg", "*.png", "*.bmp")
+    photos = []
+    for pat in patterns:
+        photos.extend(glob.glob(os.path.join(photo_dir, pat)))
+
+    registered = 0
+    skipped = 0
+
+    for photo_path in photos:
+        name = os.path.splitext(os.path.basename(photo_path))[0]
+        frame = cv2.imread(photo_path)
+        if frame is None:
+            print(f"Skipping {photo_path}: cannot read")
+            skipped += 1
+            continue
+
+        faces = detector.detect_with_embeddings(frame)
+        if not faces or not faces[0].has_embedding:
+            print(f"Skipping {photo_path}: no face detected")
+            skipped += 1
+            continue
+
+        face = faces[0]
+        if not face.quality_pass:
+            print(f"Skipping {photo_path}: low quality (blurry or too small)")
+            skipped += 1
+            continue
+
+        ok, msg = db.add_person(name, photo_path, face.embedding)
+        if ok:
+            print(f"✅ {name}")
+            registered += 1
+        else:
+            print(f"❌ {name}: {msg}")
+            skipped += 1
+
+    print(f"\nDone. Registered: {registered}, Skipped: {skipped}")
+    print(f"Database version: {db.version}, Total: {db.count_persons()}")
+
+# Usage
+build_registry_from_folder("photos/employees")
+```
+
+## Notes
+
+- The database file is created automatically on first use. No need to call `init_db()` manually.
+- `version` is a monotonically increasing integer. It starts at 0 (empty database) and increments by 1 on every mutation.
+- Embeddings are stored as binary blobs in SQLite. Each is 512 × 4 = 2048 bytes.
+- `add_person()` checks for duplicate names and returns `(False, message)` rather than raising an exception.
+- `update_person()` does nothing if no keyword arguments are provided.
+- `clear()` resets the database but does not delete the file — the file remains with empty tables.
+- The database is thread-safe at the SQLite level (WAL mode is used internally).

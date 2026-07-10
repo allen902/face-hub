@@ -44,7 +44,7 @@ Detect faces and extract 512-dim embeddings.
 Reload the model at runtime with a new input size.
 
 **Parameters:**
-- `det_size` (`int \| None`): New size, or `None` to keep current.
+- `det_size` (`int | None`): New size, or `None` to keep current.
 
 ---
 
@@ -63,6 +63,9 @@ print(f"Found {len(results)} face(s)")
 for face in results:
     x1, y1, x2, y2 = face.bbox.to_tuple()
     print(f"  box=({x1},{y1},{x2},{y2}), confidence={face.confidence:.2f}")
+
+    # Draw bounding box
+    cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
 ```
 
 ## Detection + Embeddings
@@ -71,8 +74,9 @@ for face in results:
 faces = detector.detect_with_embeddings(frame)
 for face in faces:
     if face.quality_pass and face.has_embedding:
-        print(face.embedding.shape)  # (512,)
-        print(face.embedding.dtype)  # float32
+        print(f"Embedding shape: {face.embedding.shape}")  # (512,)
+        print(f"Embedding dtype: {face.embedding.dtype}")   # float32
+        print(f"Is L2-normalized: {np.linalg.norm(face.embedding):.4f} ≈ 1.0")
 ```
 
 ## Register a New Person from a Photo
@@ -84,29 +88,46 @@ from face_hub import FaceDetector, FaceDatabase
 detector = FaceDetector(device="cpu")
 db = FaceDatabase()
 
-frame = cv2.imread("alice.jpg")
-faces = detector.detect_with_embeddings(frame)
+def register_from_photo(name, photo_path):
+    """Register a person from a single photo"""
+    frame = cv2.imread(photo_path)
+    if frame is None:
+        raise FileNotFoundError(f"Cannot read: {photo_path}")
 
-if not faces:
-    raise ValueError("No face detected")
+    faces = detector.detect_with_embeddings(frame)
 
-# Pick the most confident face
-face = faces[0]
-if not face.has_embedding:
-    raise ValueError("No embedding extracted")
+    if not faces:
+        raise ValueError(f"No face detected in {photo_path}")
 
-db.add_person("Alice", "alice.jpg", face.embedding)
+    # Pick the most confident face
+    face = faces[0]
+    if not face.has_embedding:
+        raise ValueError(f"Failed to extract embedding from {photo_path}")
+
+    ok, msg = db.add_person(name, photo_path, face.embedding)
+    if not ok:
+        raise ValueError(f"Database error: {msg}")
+
+    print(f"✅ {name} registered (confidence: {face.confidence:.0%})")
+    return True
+
+# Register multiple people
+for name, path in [("Alice", "photos/alice.jpg"), ("Bob", "photos/bob.jpg")]:
+    try:
+        register_from_photo(name, path)
+    except Exception as e:
+        print(f"❌ Failed to register {name}: {e}")
 ```
 
 ## Switch Detection Resolution at Runtime
 
 ```python
-# Start with fast detection
+# Start with fast detection for live preview
 detector = FaceDetector(det_size=320)
 
-# Later switch to high accuracy for a single important frame
+# Switch to high accuracy for a critical frame
 detector.reload_model(det_size=640)
-results = detector.detect_with_embeddings(frame)
+results = detector.detect_with_embeddings(important_frame)
 
 # Switch back to fast mode
 detector.reload_model(det_size=320)
@@ -123,14 +144,18 @@ detector = FaceDetector(device="auto")
 # Force CPU (useful for reproducible benchmarks or GPU-free servers)
 detector_cpu = FaceDetector(device="cpu")
 
-# Try GPU; if it fails it falls back to CPU automatically
-detector_gpu = FaceDetector(device="cuda")
+# Try GPU with explicit fallback
+try:
+    detector = FaceDetector(device="cuda")
+except Exception as e:
+    print(f"CUDA unavailable, falling back to CPU: {e}")
+    detector = FaceDetector(device="cpu")
 ```
 
 ## Quality Filtering
 
 ```python
-# Stricter quality: skip faces smaller than 100 px and disable blur filter
+# Stricter quality: skip faces smaller than 100 px, disable blur filter
 detector = FaceDetector(
     confidence=0.60,
     min_face_size=100,
@@ -139,9 +164,45 @@ detector = FaceDetector(
 
 for face in detector.detect_with_embeddings(frame):
     if face.quality_pass:
-        print("Good face")
+        print("✅ Good quality face")
     else:
-        print("Face too small or blurry")
+        print("❌ Face too small or blurry — skipped")
+```
+
+## Recommended Settings by Scenario
+
+| Scenario | `det_size` | `confidence` | `min_face_size` |
+|----------|------------|--------------|-----------------|
+| Real-time video (speed) | 320 | 0.50 | 80 |
+| Balanced | 480 | 0.50 | 80 |
+| Photo registration (accuracy) | 640 | 0.60 | 100 |
+| High-security access | 640 | 0.65 | 100 |
+
+```python
+# Real-time camera preview
+live_detector = FaceDetector(device="auto", det_size=320)
+
+# Photo registration / ID verification
+photo_detector = FaceDetector(device="auto", det_size=640, confidence=0.60)
+```
+
+## Performance Optimization
+
+```python
+# If GPU memory is limited, reduce input size
+low_memory_detector = FaceDetector(device="cuda", det_size=320)
+
+# Disable quality filter for maximum speed
+fast_detector = FaceDetector(device="auto", det_size=320, quality_filter=False)
+
+# High quality for registration
+quality_detector = FaceDetector(
+    device="auto",
+    det_size=640,
+    confidence=0.55,
+    min_face_size=100,
+    quality_filter=True,
+)
 ```
 
 ## Custom Detector
@@ -180,9 +241,9 @@ class MyYoloDetector:
 
 ## Notes
 
-- The first call to `FaceDetector()` downloads the `buffalo_l` insightface model
-  (~200 MB) if it is not already cached.
-- Embeddings are L2-normalized 512-dim `float32` vectors, suitable for cosine
-  similarity matching.
-- `detect()` and `detect_with_embeddings()` both return results sorted by
-  confidence descending.
+- The first call to `FaceDetector()` downloads the `buffalo_l` insightface model (~200 MB) if it is not already cached.
+- The model is cached locally; subsequent instantiations load from disk.
+- Embeddings are L2-normalized 512-dim `float32` vectors, suitable for cosine similarity matching.
+- `detect()` and `detect_with_embeddings()` both return results sorted by confidence descending.
+- When using `device="auto"` on Windows, DirectML is preferred over CUDA for broader compatibility.
+- `reload_model()` is useful for switching resolution without recreating the detector instance.
