@@ -12,6 +12,15 @@ Usage:
 __version__ = "1.0.0"
 __author__ = "AllenDeng"
 
+# When installed as a package, prefer the metadata version (pyproject.toml).
+# Falls back to the hardcoded value above during local development.
+try:
+    from importlib.metadata import version as _pkg_version
+
+    __version__ = _pkg_version("face-hub")
+except Exception:
+    pass
+
 # ── Core components (from engine subpackage) ─────────────────
 from face_hub.engine.camera import CameraThread
 from face_hub.engine.face_detector import FaceDetector
