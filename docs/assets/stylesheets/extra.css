@@ -1,166 +1,265 @@
-/* ── FaceHub Documentation Custom Styles ── */
+/* ── FaceHub Documentation — Desktop Optimized ── */
 
-/* Hero section */
-.md-typeset .hero {
-  text-align: center;
-  padding: 2rem 1rem;
+/* ── Root variables ── */
+:root {
+  --fh-content-max: 960px;
+  --fh-sidebar-w: 260px;
+  --fh-font-scale: 0.92;
 }
 
-.md-typeset .hero h1 {
-  font-size: 2.5rem;
+/* ── Typography — tighter, smaller ── */
+.md-typeset {
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.md-typeset h1 {
+  font-size: 1.65rem;
   font-weight: 700;
-  margin-bottom: 0.5rem;
+  letter-spacing: -0.01em;
+  margin-top: 0;
+  margin-bottom: 1rem;
 }
 
-.md-typeset .hero p {
-  font-size: 1.2rem;
-  opacity: 0.8;
+.md-typeset h2 {
+  font-size: 1.25rem;
+  font-weight: 650;
+  margin-top: 2rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
 }
 
-/* Feature cards */
+.md-typeset h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  margin-bottom: 0.4rem;
+}
+
+.md-typeset h4 {
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-top: 1.2rem;
+  margin-bottom: 0.3rem;
+}
+
+.md-typeset p {
+  margin-bottom: 0.75rem;
+}
+
+.md-typeset ul,
+.md-typeset ol {
+  margin-bottom: 0.75rem;
+  padding-left: 1.4rem;
+}
+
+.md-typeset li {
+  margin-bottom: 0.25rem;
+}
+
+/* ── Content area — constrain width ── */
+.md-content__inner {
+  max-width: var(--fh-content-max);
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* ── Code blocks — compact ── */
+.md-typeset pre > code {
+  font-size: 0.8rem;
+  line-height: 1.55;
+  padding: 0.8rem 1rem;
+}
+
+.md-typeset code {
+  font-size: 0.8rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
+/* ── Tables — clean & compact ── */
+.md-typeset table {
+  display: table;
+  width: 100%;
+  font-size: 0.82rem;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+
+.md-typeset table th {
+  background-color: var(--md-primary-fg-color--lightest);
+  color: var(--md-default-fg-color);
+  font-weight: 600;
+  white-space: nowrap;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 2px solid var(--md-primary-fg-color);
+  font-size: 0.8rem;
+}
+
+.md-typeset table td {
+  padding: 0.45rem 0.75rem;
+  border-bottom: 1px solid var(--md-default-fg-color--lightest);
+  vertical-align: top;
+}
+
+.md-typeset table tr:hover td {
+  background-color: var(--md-default-fg-color--lightest);
+}
+
+/* ── Admonitions — refined ── */
+.md-typeset .admonition,
+.md-typeset details {
+  border-radius: 6px;
+  font-size: 0.84rem;
+  margin: 1rem 0;
+}
+
+.md-typeset .admonition-title {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.md-typeset .admonition p {
+  margin: 0.5rem 0;
+}
+
+/* ── Sidebar — compact ── */
+.md-sidebar--primary {
+  width: 160px;
+}
+
+.md-sidebar--secondary {
+  width: 200px;
+}
+
+.md-sidebar .md-nav__link {
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.md-sidebar .md-nav__title {
+  font-size: 0.78rem;
+}
+
+/* ── Navigation tabs ── */
+.md-tabs {
+  background-color: var(--md-primary-fg-color);
+  font-size: 0.82rem;
+}
+
+.md-tabs__link {
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+}
+
+/* ── Top bar ── */
+.md-header__title {
+  font-size: 0.95rem;
+}
+
+.md-search__input {
+  font-size: 0.82rem;
+  border-radius: 4px;
+}
+
+/* ── Cards grid (for feature showcase) ── */
 .md-typeset .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 1.5rem;
-  margin: 2rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 1.2rem 0;
 }
 
 .md-typeset .card {
   border: 1px solid var(--md-default-fg-color--lightest);
-  border-radius: 8px;
-  padding: 1.5rem;
-  transition: all 0.2s ease;
+  border-radius: 6px;
+  padding: 1rem 1.2rem;
+  transition: all 0.15s ease;
 }
 
 .md-typeset .card:hover {
   border-color: var(--md-accent-fg-color);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  transform: translateY(-1px);
 }
 
 .md-typeset .card h3 {
+  font-size: 0.95rem;
   margin-top: 0;
+  margin-bottom: 0.4rem;
   color: var(--md-primary-fg-color);
 }
 
-/* Code blocks */
-.md-typeset pre > code {
-  font-size: 0.85rem;
-  line-height: 1.6;
+.md-typeset .card p {
+  font-size: 0.82rem;
+  margin: 0;
+  opacity: 0.85;
 }
 
-/* Tables */
-.md-typeset table {
-  display: table;
-  width: 100%;
-  font-size: 0.85rem;
-}
-
-.md-typeset table th {
-  background-color: var(--md-primary-fg-color--light);
-  color: var(--md-primary-bg-color);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.md-typeset table tr:hover {
-  background-color: var(--md-default-fg-color--lightest);
-}
-
-/* Admonitions */
-.md-typeset .admonition {
-  border-radius: 6px;
-  font-size: 0.9rem;
-}
-
-/* API reference styling */
-.md-typeset .doc-heading {
-  border-bottom: 2px solid var(--md-accent-fg-color);
-  padding-bottom: 0.5rem;
-  margin-bottom: 1.5rem;
-}
-
-/* Badge-like labels */
+/* ── Badges ── */
 .md-typeset .badge {
   display: inline-block;
-  padding: 0.15rem 0.5rem;
-  border-radius: 4px;
-  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.7rem;
   font-weight: 600;
   line-height: 1.4;
+  vertical-align: middle;
 }
 
-.md-typeset .badge--new {
-  background-color: #4caf50;
-  color: white;
+.md-typeset .badge--new     { background: #4caf50; color: #fff; }
+.md-typeset .badge--changed { background: #ff9800; color: #fff; }
+.md-typeset .badge--dep     { background: #f44336; color: #fff; }
+
+/* ── API reference: method signatures ── */
+.md-typeset .doc-heading {
+  border-bottom: 2px solid var(--md-accent-fg-color);
+  padding-bottom: 0.4rem;
+  margin-bottom: 1rem;
 }
 
-.md-typeset .badge--changed {
-  background-color: #ff9800;
-  color: white;
-}
-
-.md-typeset .badge--deprecated {
-  background-color: #f44336;
-  color: white;
-}
-
-/* Footer */
-.md-footer {
-  margin-top: 2rem;
-}
-
-/* Navigation tabs */
-.md-tabs {
-  background-color: var(--md-primary-fg-color);
-}
-
-.md-tabs__link {
-  font-size: 0.85rem;
-  font-weight: 500;
-}
-
-/* Search */
-.md-search__input {
-  border-radius: 4px;
-}
-
-/* Content width */
-.md-content {
-  max-width: 100%;
-}
-
-/* Responsive adjustments */
-@media screen and (max-width: 76.1875em) {
-  .md-nav--primary .md-nav__title {
-    background-color: var(--md-primary-fg-color);
-  }
-}
-
-/* Language switcher highlight */
-.md-header__option[aria-label="English"],
-.md-header__option[aria-label="中文"] {
-  font-weight: 600;
-}
-
-/* Smooth transitions */
+/* ── Smooth transitions ── */
 .md-nav__link,
 .md-tabs__link,
 .md-footer__link {
-  transition: color 0.2s ease, opacity 0.2s ease;
+  transition: color 0.15s ease, opacity 0.15s ease;
 }
 
-/* Print styles */
+/* ── Footer ── */
+.md-footer {
+  margin-top: 2rem;
+  font-size: 0.78rem;
+}
+
+/* ── Print ── */
 @media print {
-  .md-header,
-  .md-tabs,
-  .md-footer,
-  .md-sidebar {
-    display: none !important;
+  .md-header, .md-tabs, .md-footer, .md-sidebar { display: none !important; }
+  .md-content { margin: 0; padding: 1rem; }
+}
+
+/* ── Responsive — tablet ── */
+@media screen and (max-width: 76.1875em) {
+  :root {
+    --fh-content-max: 100%;
   }
 
-  .md-content {
-    margin: 0;
-    padding: 1rem;
+  .md-sidebar--primary  { width: 140px; }
+  .md-sidebar--secondary { width: 180px; }
+}
+
+/* ── Responsive — mobile ── */
+@media screen and (max-width: 61.5em) {
+  .md-typeset {
+    font-size: 0.9rem;
+  }
+
+  .md-typeset h1 { font-size: 1.5rem; }
+  .md-typeset h2 { font-size: 1.2rem; }
+
+  .md-content__inner {
+    padding-left: 1rem;
+    padding-right: 1rem;
   }
 }

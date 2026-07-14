@@ -31,19 +31,20 @@ theme:
     repo: fontawesome/brands/github
     logo: material/face-recognition
   features:
-    - navigation.instant
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
     - navigation.top
     - navigation.footer
+    - navigation.indexes
     - search.suggest
     - search.highlight
     - content.code.copy
     - content.code.annotate
     - content.tabs.link
     - toc.follow
+    - toc.integrate
 
 plugins:
   - search
