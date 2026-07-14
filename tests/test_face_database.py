@@ -1,6 +1,7 @@
 """Test FaceDatabase CRUD and persistence."""
 
 import numpy as np
+import pytest
 from face_hub import FaceDatabase
 
 
@@ -25,6 +26,22 @@ class TestFaceDatabase:
         db.add_person("Alice", "/tmp/a.jpg", sample_encoding)
         ok, msg = db.add_person("Alice", "/tmp/b.jpg", sample_encoding)
         assert ok is False
+
+    def test_add_person_validates_name(self, temp_db_paths, sample_encoding):
+        db_path, enc_path = temp_db_paths
+        db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+        with pytest.raises(ValueError, match="non-empty string"):
+            db.add_person("", "/tmp/a.jpg", sample_encoding)
+        with pytest.raises(ValueError, match="non-empty string"):
+            db.add_person(None, "/tmp/a.jpg", sample_encoding)
+
+    def test_add_person_validates_encoding_shape(self, temp_db_paths):
+        db_path, enc_path = temp_db_paths
+        db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+        with pytest.raises(ValueError, match="shape"):
+            db.add_person("Alice", "/tmp/a.jpg", np.zeros(256))
+        with pytest.raises(ValueError, match="shape"):
+            db.add_person("Alice", "/tmp/a.jpg", "not_an_array")
 
     def test_remove_person(self, temp_db_paths, sample_encoding):
         db_path, enc_path = temp_db_paths
@@ -79,3 +96,15 @@ class TestFaceDatabase:
         db.add_person("Alice", "/tmp/a.jpg", sample_encoding)
         db.clear()
         assert len(db.get_names()) == 0
+
+    def test_encoding_saved_as_npy(self, temp_db_paths, sample_encoding):
+        """Verify encodings are stored as .npy (not pickle)."""
+        import os
+        db_path, enc_path = temp_db_paths
+        db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+        db.add_person("Alice", "/tmp/a.jpg", sample_encoding)
+        assert os.path.exists(enc_path)
+        assert enc_path.endswith(".npy") or enc_path.endswith(".npy")
+        # Verify it can be loaded with numpy (no pickle needed)
+        data = np.load(enc_path, allow_pickle=False)
+        assert data.shape == (1, 512)

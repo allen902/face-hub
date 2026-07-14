@@ -4,8 +4,15 @@
 
 数据库存储：
 - 人员元数据（`name`、`image_path`）到 JSON 文件。
-- 人脸特征向量到 pickle 文件。
+- 人脸特征向量到 `.npy` 文件（numpy 原生安全格式，非 pickle）。
 - 单调递增的 `version` 版本号，下游组件用它来高效地失效缓存。
+
+安全特性：
+- 编码使用 `.npy` 格式存储，防止 pickle 反序列化导致的任意代码执行。
+- `image_path` 路径校验，防止路径穿越攻击。
+- 原子写入（临时文件 + 重命名），防止进程崩溃导致数据损坏。
+- 数据库文件权限设为 `0o600`（仅 owner 可读写）。
+- 自动兼容旧版 `.pkl` 格式，加载时自动迁移为 `.npy`。
 
 ---
 
@@ -14,7 +21,7 @@
 | 参数 | 类型 | 默认值 | 说明 |
 |------|------|--------|------|
 | `db_path` | `str` | `"face_db.json"` | 人员记录 JSON 文件路径 |
-| `encoding_path` | `str` | `"encodings.pkl"` | 编码 pickle 文件路径 |
+| `encoding_path` | `str` | `"encodings.npy"` | 编码 numpy 文件路径 |
 
 ## 属性
 
@@ -22,7 +29,7 @@
 |------|------|------|
 | `version` | `int` | 数据库版本号，每次写操作（增删改）后递增 |
 | `db_path` | `str` | 当前数据库 JSON 文件路径 |
-| `encoding_path` | `str` | 当前编码 pickle 文件路径 |
+| `encoding_path` | `str` | 当前编码 `.npy` 文件路径 |
 
 ## 方法
 
@@ -31,12 +38,15 @@
 添加人员到数据库。要求 `name` 在数据库中唯一。
 
 **参数:**
-- `name` (`str`): 唯一姓名
+- `name` (`str`): 唯一姓名（非空字符串）
 - `image_path` (`str`): 参考照片的路径
-- `encoding` (`np.ndarray`): 512 维 L2 归一化的人脸特征向量
+- `encoding` (`np.ndarray`): 512 维 L2 归一化的人脸特征向量，shape 必须为 `(512,)`
 
 **返回:**
 - `(bool, str)`: `(是否成功, 消息)`。成功时消息为 `"ok"`，失败时说明原因。
+
+**异常:**
+- `ValueError`: `name` 为空、`encoding` shape 不是 `(512,)`
 
 ### remove_person(name)
 
@@ -102,7 +112,7 @@
 import numpy as np
 from face_hub import FaceDatabase
 
-db = FaceDatabase(db_path="face_db.json", encoding_path="encodings.pkl")
+db = FaceDatabase(db_path="face_db.json", encoding_path="encodings.npy")
 
 # 实际使用时，编码来自 FaceDetector.detect_with_embeddings()
 encoding = np.random.randn(512).astype(np.float32)
@@ -343,22 +353,22 @@ def backup_database(db, backup_dir="backups"):
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     json_backup = f"{backup_dir}/face_db_{timestamp}.json"
-    pkl_backup = f"{backup_dir}/encodings_{timestamp}.pkl"
+    npy_backup = f"{backup_dir}/encodings_{timestamp}.npy"
 
     shutil.copy2(db.db_path, json_backup)
-    shutil.copy2(db.encoding_path, pkl_backup)
+    shutil.copy2(db.encoding_path, npy_backup)
 
     print(f"数据库已备份到 {backup_dir}/")
-    return json_backup, pkl_backup
+    return json_backup, npy_backup
 
-def restore_database(db, json_path, pkl_path):
+def restore_database(db, json_path, npy_path):
     """从备份恢复数据库"""
     import os
     db.save()  # 先保存当前状态
 
     # 复制备份文件
     shutil.copy2(json_path, db.db_path)
-    shutil.copy2(pkl_path, db.encoding_path)
+    shutil.copy2(npy_path, db.encoding_path)
 
     # 重新加载
     db.load()
@@ -373,6 +383,8 @@ backup_database(db)
 - 数据库文件默认保存在当前工作目录。指定 `db_path` 参数可以控制位置。
 - `encoding` 必须是 512 维 `float32` 的 numpy 数组（ArcFace 输出）。
 - 删除人员时，对应的参考照片文件也会被删除（如果存在）。
+- `image_path` 会进行路径校验，不允许指向数据库目录之外的路径。
 - `clear()` 会删除持久化文件和所有照片，操作不可逆。
 - 版本号从 1 开始，每次写操作自增 1。`clear()` 后版本号重置为 1。
 - 数据库在构造时自动调用 `load()`，如果文件不存在则初始化为空。
+- 如果检测到旧版 `.pkl` 编码文件，会自动迁移为 `.npy` 格式并删除旧文件。

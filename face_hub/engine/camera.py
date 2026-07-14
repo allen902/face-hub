@@ -8,6 +8,7 @@ Platform backends:
   - Linux:    V4L2 (cv2.CAP_V4L2)
 """
 
+import atexit
 import cv2
 import threading
 import time
@@ -16,10 +17,6 @@ import sys
 import logging
 from collections import deque
 
-# Suppress DShow hardware transform warnings on Windows
-if sys.platform == "win32":
-    os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
-
 logger = logging.getLogger("face_hub.camera")
 
 
@@ -27,6 +24,15 @@ class CameraThread:
     """Camera capture thread — pure acquisition, no processing."""
 
     def __init__(self, camera_id=0, width=640, height=360, fps=30):
+        if not isinstance(camera_id, int) or camera_id < 0:
+            raise ValueError(f"camera_id must be a non-negative int, got {camera_id}")
+        if not isinstance(width, int) or width <= 0:
+            raise ValueError(f"width must be a positive int, got {width}")
+        if not isinstance(height, int) or height <= 0:
+            raise ValueError(f"height must be a positive int, got {height}")
+        if not isinstance(fps, (int, float)) or fps <= 0:
+            raise ValueError(f"fps must be a positive number, got {fps}")
+
         self.camera_id = camera_id
         self.width = width
         self.height = height
@@ -39,6 +45,18 @@ class CameraThread:
         self._actual_fps = 0.0
         self._fps_lock = threading.Lock()
         self._frame_available = threading.Event()
+
+        # Suppress DShow hardware transform warnings on Windows.
+        # Done in __init__ (not at module level) to avoid side-effecting
+        # the process environment on import.
+        if sys.platform == "win32":
+            self._orig_env = os.environ.get(
+                "OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"
+            )
+            os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
+
+        # Register cleanup hook so the camera is released on interpreter exit
+        atexit.register(self.stop)
 
     # ── Platform-aware backend selection ──────────────────────
 

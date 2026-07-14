@@ -9,7 +9,7 @@ Usage:
     from face_hub.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
 """
 
-__version__ = "1.0.4"
+__version__ = "1.0.5"
 __author__ = "AllenDeng"
 
 # When installed as a package, prefer the metadata version (pyproject.toml).
@@ -18,7 +18,7 @@ try:
     from importlib.metadata import version as _pkg_version
 
     __version__ = _pkg_version("face-hub")
-except Exception:
+except Exception:  # noqa: BLE001 — fallback for local dev without install
     pass
 
 # ── Core components (from engine subpackage) ─────────────────

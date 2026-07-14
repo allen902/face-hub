@@ -93,6 +93,18 @@ class FaceRecognizer:
         if unknown_encoding is None or len(names) == 0:
             return UNKNOWN_SENTINEL, 0.0
 
+        # Validate encoding dimension
+        if hasattr(encodings, 'shape') and encodings.ndim == 2:
+            expected_dim = encodings.shape[1]
+        else:
+            expected_dim = 512
+        if hasattr(unknown_encoding, 'shape') and unknown_encoding.size != expected_dim:
+            logger.warning(
+                "Encoding dimension mismatch: query has %d dims, gallery has %d",
+                unknown_encoding.size, expected_dim,
+            )
+            return UNKNOWN_SENTINEL, 0.0
+
         # Ensure float32 without unnecessary copies
         if not isinstance(unknown_encoding, np.ndarray):
             unknown_encoding = np.asarray(unknown_encoding, dtype=np.float32)

@@ -58,6 +58,7 @@ class FaceHubPipeline:
         self._debug_frame_count = 0     # independent counter for debug logging
         self._fps_timer = time.time()
         self._current_fps = 0.0
+        self._last_db_version = -1      # skip redundant cache syncs
 
     # ── Lifecycle ────────────────────────────────────────────────
 
@@ -129,11 +130,14 @@ class FaceHubPipeline:
                 return None
 
         try:
-            # 2. Sync encoding cache
-            known_encodings, known_names = self.db.get_encodings_and_names()
-            self.recognizer.update_cache(
-                known_encodings, known_names, self.db.version
-            )
+            # 2. Sync encoding cache (only when database version changes)
+            current_version = self.db.version
+            if current_version != self._last_db_version:
+                known_encodings, known_names = self.db.get_encodings_and_names()
+                self.recognizer.update_cache(
+                    known_encodings, known_names, current_version
+                )
+                self._last_db_version = current_version
 
             # 3. Detect + extract embeddings
             detections = self.detector.detect_with_embeddings(frame)

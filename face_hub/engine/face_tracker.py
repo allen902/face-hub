@@ -153,6 +153,13 @@ class FaceTracker:
     """
 
     def __init__(self, smooth_frames=5, iou_threshold=0.30, max_missed=10):
+        if not isinstance(smooth_frames, int) or smooth_frames < 1:
+            raise ValueError(f"smooth_frames must be a positive int, got {smooth_frames}")
+        if not isinstance(iou_threshold, (int, float)) or not (0 < iou_threshold <= 1):
+            raise ValueError(f"iou_threshold must be in (0, 1], got {iou_threshold}")
+        if not isinstance(max_missed, int) or max_missed < 1:
+            raise ValueError(f"max_missed must be a positive int, got {max_missed}")
+
         self.smooth_frames = smooth_frames
         self.iou_threshold = iou_threshold
         self.max_missed = max_missed
@@ -184,7 +191,7 @@ class FaceTracker:
                 try:
                     name, rec_conf = recognizer.recognize(embedding, None, None)
                 except Exception:
-                    pass
+                    logger.debug("Recognition failed for detection", exc_info=True)
 
             recognized.append({
                 'bbox': bbox,

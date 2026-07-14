@@ -24,6 +24,13 @@ class FaceDetector:
 
     def __init__(self, confidence=0.50, device="auto", det_size=640,
                  quality_filter=True, min_face_size=80):
+        if not isinstance(confidence, (int, float)) or not (0 < confidence <= 1):
+            raise ValueError(f"confidence must be in (0, 1], got {confidence}")
+        if not isinstance(det_size, int) or det_size < 160:
+            raise ValueError(f"det_size must be an int >= 160, got {det_size}")
+        if not isinstance(min_face_size, int) or min_face_size < 0:
+            raise ValueError(f"min_face_size must be a non-negative int, got {min_face_size}")
+
         if device == "auto":
             device = "cuda"
         self.confidence = confidence

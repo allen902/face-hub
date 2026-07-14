@@ -26,10 +26,13 @@ def temp_db_paths():
     """Create temporary database paths, cleanup after test."""
     tmpdir = tempfile.mkdtemp()
     db_path = os.path.join(tmpdir, "test_db.json")
-    enc_path = os.path.join(tmpdir, "test_enc.pkl")
+    enc_path = os.path.join(tmpdir, "test_enc.npy")
     yield db_path, enc_path
-    # Cleanup
-    for p in [db_path, enc_path]:
+    # Cleanup (including any legacy .pkl that migration may have created)
+    for ext in [".npy", ".pkl"]:
+        p = os.path.join(tmpdir, f"test_enc{ext}")
         if os.path.exists(p):
             os.remove(p)
+    if os.path.exists(db_path):
+        os.remove(db_path)
     os.rmdir(tmpdir)

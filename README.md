@@ -1,10 +1,18 @@
+<div align="right">
+
+### 🌐 [English](#facehub) | [中文](#facehub中文)
+
+</div>
+
 # FaceHub
 
 > Real-time face recognition library — detection, embedding, tracking, and matching.
 
-[![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://github.com/allen902/face_vision/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face_vision/actions/workflows/publish.yml)
+[![PyPI](https://img.shields.io/pypi/v/face-hub.svg)](https://pypi.org/project/face-hub/)
+[![Docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://allen902.github.io/face-hub/)
+[![Tests](https://github.com/allen902/face-hub/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face-hub/actions/workflows/publish.yml)
 
 ## Features
 
@@ -89,11 +97,13 @@ pipeline = FaceHubPipeline(camera, MyYoloDetector(), recognizer, tracker, db)
 
 ## Documentation
 
-Full API docs (English / 中文) are in the `docs/` directory and can be served with:
+📖 **[Online Documentation](https://allen902.github.io/face-hub/)** — Full API reference in English & 中文
+
+To preview locally:
 
 ```bash
-pip install mkdocs mkdocs-material
-cd docs && mkdocs serve
+pip install -r docs/requirements.txt
+mkdocs serve -f docs/mkdocs.yml
 ```
 
 ## License
@@ -103,6 +113,12 @@ The FaceHub **code** is released under the [MIT License](LICENSE).
 > ⚠️ The pre-trained `buffalo_l` model downloaded automatically by insightface is subject to insightface's own model license and is for non-commercial research use unless separate authorization is obtained. See the documentation for details.
 
 ---
+
+<div align="right">
+
+### 🌐 [English](#facehub) | [中文](#facehub中文)
+
+</div>
 
 # FaceHub（中文）
 
@@ -172,7 +188,7 @@ finally:
 
 ## 文档
 
-完整中英 API 文档位于 `docs/` 目录，可通过 MkDocs 本地预览。
+📖 **[在线文档](https://allen902.github.io/face-hub/)** — 完整中英 API 文档
 
 ## 许可
 

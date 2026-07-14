@@ -26,11 +26,11 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "opencv-python>=4.8.0",
-    "insightface>=0.7.3",
-    "onnxruntime>=1.18.0",
-    "numpy>=1.24.0",
-    "Pillow>=10.0.0",
+    "opencv-python>=4.8.0,<5",
+    "insightface>=0.7.3,<1",
+    "onnxruntime>=1.18.0,<2",
+    "numpy>=1.24.0,<3",
+    "Pillow>=10.0.0,<11",
 ]
 
 [project.optional-dependencies]
@@ -39,10 +39,10 @@ gpu-linux = ["onnxruntime-gpu>=1.18.0"]
 dev = ["pytest>=7.0", "build>=0.10", "twine>=4.0"]
 
 [project.urls]
-Homepage = "https://github.com/allen902/face_vision"
-Documentation = "https://allen902.github.io/face_vision/"
-Repository = "https://github.com/allen902/face_vision"
-Issues = "https://github.com/allen902/face_vision/issues"
+Homepage = "https://github.com/allen902/face-hub"
+Documentation = "https://allen902.github.io/face-hub/"
+Repository = "https://github.com/allen902/face-hub"
+Issues = "https://github.com/allen902/face-hub/issues"
 
 [tool.setuptools.dynamic]
 version = { attr = "face_hub.__version__" }
