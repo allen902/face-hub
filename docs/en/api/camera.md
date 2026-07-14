@@ -1,13 +1,10 @@
 # CameraThread
 
-Background thread for camera frame capture. Fetches frames from a USB or
-built-in camera in a dedicated thread to avoid blocking the main loop.
+Camera capture thread that runs in a dedicated background thread, providing
+thread-safe access to the latest frame.
 
-Key features:
-- Configurable resolution and FPS
-- Thread-safe frame access
-- Optional horizontal flip (mirror)
-- Automatic camera release
+This class is **capture-only** — all ML inference happens in other components
+(usually orchestrated by `FaceHubPipeline`).
 
 ---
 
@@ -15,171 +12,194 @@ Key features:
 
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `camera_id` | `int` | `0` | Camera device index (0 = default camera) |
-| `width` | `int` | `640` | Frame width |
-| `height` | `int` | `360` | Frame height |
-| `fps` | `int` | `30` | Target capture rate |
-| `flip` | `int` | `0` | Flip mode: 0=none, 1=horizontal, -1=vertical, 0=no flip |
+| `camera_id` | `int` | `0` | Camera index (0 is the default camera) |
+| `width` | `int` | `640` | Requested capture width (pixels) |
+| `height` | `int` | `360` | Requested capture height (pixels) |
+| `fps` | `int` | `30` | Requested capture frame rate |
+
+> **Note:** The OpenCV backend is auto-detected per platform (Windows: DirectShow, macOS: AVFoundation, Linux: V4L2). No manual configuration is needed.
 
 ## Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `is_running` | `bool` | Whether the capture thread is active |
-| `width` | `int` | Current frame width |
-| `height` | `int` | Current frame height |
+| `running` | `bool` | Whether the capture thread is active |
+| `actual_fps` | `float` | Measured capture FPS (updated once per second) |
 
 ## Methods
 
 ### start()
 
-Start the capture thread. Opens the camera and begins fetching frames.
+Open the camera and start the background capture thread. Raises `CameraError`
+if the camera cannot be opened.
 
 ### stop()
 
-Stop the capture thread and release the camera.
+Stop the capture thread and release camera resources.
 
-### read()
+### get_frame(timeout=0.05, copy=True)
 
-Get the latest frame.
+Get the latest captured frame.
+
+**Parameters:**
+- `timeout` (`float`): Max seconds to wait for a new frame. Returns `None` if no frame arrives within the deadline.
+- `copy` (`bool`): If `True` (default), returns a safe copy. Set `False` for zero-copy mode — caller must NOT mutate the returned frame.
 
 **Returns:**
-- `np.ndarray | None`: BGR frame `(height, width, 3)`, or `None` if no frame is available yet.
+- `np.ndarray | None`: BGR frame `(H, W, 3)`, or `None` if timeout expired.
+
+### list_cameras(max_test=5)
+
+Static method. List available camera indices on the system.
+
+**Parameters:**
+- `max_test` (`int`): Maximum number of indices to test (0 to max_test-1).
+
+**Returns:**
+- `List[int]`: Available camera indices.
+
+---
+
+## Platform Backends
+
+| OS | OpenCV Backend | Notes |
+|----|----------------|-------|
+| Windows | `cv2.CAP_DSHOW` | DirectShow, best compatibility |
+| macOS | `cv2.CAP_AVFOUNDATION` | AVFoundation |
+| Linux | `cv2.CAP_V4L2` | Video4Linux2 |
 
 ---
 
 ## Basic Usage
 
 ```python
+import cv2
 from face_hub import CameraThread
 
 camera = CameraThread(camera_id=0, width=640, height=360, fps=30)
 camera.start()
 
-while True:
-    frame = camera.read()
-    if frame is None:
-        continue
-    # process frame...
+try:
+    while True:
+        frame = camera.get_frame()
+        if frame is not None:
+            cv2.imshow("Preview", frame)
+            if cv2.waitKey(1) == 27:  # ESC to quit
+                break
+finally:
+    camera.stop()
+    cv2.destroyAllWindows()
+```
+
+## Context Manager
+
+`CameraThread` supports the `with` statement for automatic cleanup:
+
+```python
+from face_hub import CameraThread
+
+with CameraThread(camera_id=0) as cam:
+    while True:
+        frame = cam.get_frame()
+        if frame is None:
+            continue
+        # process frame...
+# camera is automatically stopped when exiting the block
+```
+
+## Enumerate Available Cameras
+
+```python
+from face_hub import CameraThread
+
+available = CameraThread.list_cameras(max_test=10)
+print(f"Available cameras: {available}")
+
+if not available:
+    print("No cameras detected")
+elif 0 in available:
+    camera = CameraThread(camera_id=0)
+else:
+    camera = CameraThread(camera_id=available[0])
+```
+
+## Monitor Actual FPS
+
+```python
+import time
+from face_hub import CameraThread
+
+camera = CameraThread(camera_id=0, width=640, height=360, fps=30)
+camera.start()
+
+# Wait for FPS statistics to stabilize (at least 1 second)
+time.sleep(2)
+
+print(f"Requested: 30 FPS")
+print(f"Actual: {camera.actual_fps:.1f} FPS")
 
 camera.stop()
 ```
 
-## With the Pipeline (Recommended)
+## Zero-Copy Mode
+
+Zero-copy mode avoids memory duplication for high-frame-rate scenarios.
+**Caution:** you must finish processing before the next frame arrives:
 
 ```python
-from face_hub import (
-    CameraThread, FaceHubPipeline,
-    FaceDetector, FaceRecognizer, FaceTracker, FaceDatabase,
-)
-
-camera = CameraThread(camera_id=0, width=640, height=360)
-pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
-
-pipeline.start()  # starts camera automatically
-try:
-    while True:
-        result = pipeline.process_frame()
-        if result is not None:
-            cv2.imshow("FaceHub", result.frame)
-finally:
-    pipeline.stop()  # stops camera automatically
-```
-
-## Auto-Start / Auto-Stop
-
-`CameraThread` can be started manually or automatically. The pipeline
-handles this for you:
-
-```python
-camera = CameraThread(0)
-print(camera.is_running)  # False (camera not opened yet)
-
-# Option 1: Start manually
+camera = CameraThread(camera_id=0, width=1280, height=720, fps=60)
 camera.start()
-print(camera.is_running)  # True
 
-# Option 2: Let pipeline start it
-pipeline = FaceHubPipeline(camera, ...)
-pipeline.start()
-print(camera.is_running)  # True (started by pipeline)
+while True:
+    frame = camera.get_frame(copy=False)
+    if frame is None:
+        continue
+
+    # ⚠️ Must finish processing before the next frame arrives
+    processed = cv2.resize(frame, (320, 180))
+    cv2.imshow("Preview", processed)
+
+    if cv2.waitKey(1) == 27:
+        break
+
+camera.stop()
 ```
-
-## Mirror / Flip
-
-```python
-# Mirror mode for selfie / kiosk
-mirror_camera = CameraThread(camera_id=0, flip=1)
-
-# No flip
-normal_camera = CameraThread(camera_id=0, flip=0)
-```
-
-## Multiple Cameras
-
-```python
-cam1 = CameraThread(camera_id=0, width=640, height=360)
-cam2 = CameraThread(camera_id=1, width=320, height=240)
-
-cam1.start()
-cam2.start()
-
-frame1 = cam1.read()
-frame2 = cam2.read()
-```
-
-## FPS Target
-
-```python
-# 60 FPS for smooth preview
-smooth_cam = CameraThread(camera_id=0, fps=60)
-
-# 15 FPS for low CPU usage
-low_usage_cam = CameraThread(camera_id=0, fps=15)
-```
-
-**Note:** The actual FPS may be lower than the target depending on camera hardware
-capabilities and system load.
 
 ## Resolution Presets
 
 ```python
-# Common resolutions
+# Low resolution: high FPS, good for real-time monitoring
+low_res = CameraThread(camera_id=0, width=320, height=180, fps=60)
 
-# 480p (SD) — low CPU usage
-cam_sd = CameraThread(camera_id=0, width=640, height=480)
+# Medium resolution: recommended for face recognition
+mid_res = CameraThread(camera_id=0, width=640, height=360, fps=30)
 
-# 720p (HD) — balanced
-cam_hd = CameraThread(camera_id=0, width=1280, height=720)
-
-# 1080p (Full HD) — high quality, more CPU
-cam_fhd = CameraThread(camera_id=0, width=1920, height=1080)
+# High resolution: good for photo capture / registration
+high_res = CameraThread(camera_id=0, width=1280, height=720, fps=15)
 ```
 
-## Lifecycle Best Practices
+## Error Handling
 
 ```python
-camera = CameraThread(0)
+from face_hub import CameraThread
+from face_hub.exceptions import CameraError
 
 try:
+    camera = CameraThread(camera_id=0)
     camera.start()
-    while True:
-        frame = camera.read()
-        if frame is not None:
-            cv2.imshow("Preview", frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-finally:
-    camera.stop()       # always release
-    cv2.destroyAllWindows()
+except CameraError as e:
+    print(f"Cannot open camera: {e}")
+    print(f"  camera_id: {e.camera_id}")
+    print("Check:")
+    print("  1. Camera is connected")
+    print("  2. Camera is not in use by another app")
+    print("  3. camera_id is correct")
 ```
 
 ## Notes
 
-- The camera is opened in a background thread, so `start()` returns immediately.
-- The capture thread is created as a daemon thread — if the main process exits,
-  the thread stops automatically (but it is better to call `stop()` explicitly).
-- `read()` returns `None` when the camera hasn't produced a frame yet. Always
-  check for `None` before processing.
-- Changing resolution requires stopping and re-creating the `CameraThread`.
-- On Windows, DirectShow backend is used automatically via OpenCV.
+- **Always call `stop()`** when done, or use the context manager. Otherwise the background thread and camera handle may leak.
+- **`get_frame()` returns `None`** when no new frame is available within the timeout. In a real-time loop, simply skip and retry.
+- **Resolution/FPS are requests** — the actual values are the closest supported by the camera hardware. Use `actual_fps` to check.
+- **Thread-safe** — `get_frame()` can be called from multiple threads concurrently; each receives an independent copy.
+- The capture thread is a daemon thread — it stops automatically when the main process exits, but explicit `stop()` is recommended.

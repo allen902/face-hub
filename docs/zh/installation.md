@@ -31,7 +31,7 @@ pip install face-hub[dev]
 ## 平台说明
 
 - **Windows**：默认使用 DirectShow 后端打开摄像头。
-- **macOS**：v1.0 使用 CPU 推理；摄像头后端为 AVFoundation。
+- **macOS**：仅支持 CPU 推理；摄像头后端为 AVFoundation。
 - **Linux**：摄像头后端为 V4L2。
 
 ## 模型许可

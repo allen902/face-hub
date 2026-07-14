@@ -19,7 +19,7 @@ and camera capture.
 |----------|-------------------|-------|
 | Windows | DirectML / CUDA / CPU | Auto-detect, prefers GPU |
 | Linux | CUDA / CPU | Auto-detect, prefers GPU |
-| macOS | CPU | CPU only in v1.0; CoreML planned for v1.1 |
+| macOS | CPU | CPU only; CoreML planned |
 
 ## Next Steps
 

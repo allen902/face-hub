@@ -72,6 +72,7 @@ plugins:
             Database: 数据库
             Camera: 摄像头
             Types: 类型
+            Config: 配置
             Exceptions: 异常
             Basic Webcam: 基础摄像头
             Custom Detector: 自定义检测器
@@ -136,6 +137,7 @@ nav:
       - Tracker: api/tracker.md
       - Database: api/database.md
       - Camera: api/camera.md
+      - Config: api/config.md
       - Types: api/types.md
       - Exceptions: api/exceptions.md
   - Examples:

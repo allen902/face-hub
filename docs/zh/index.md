@@ -18,7 +18,7 @@ FaceHub 是一个实时人脸识别 Python 库，提供无 GUI、可独立使用
 |------|----------|------|
 | Windows | DirectML / CUDA / CPU | 自动探测，优先 GPU |
 | Linux | CUDA / CPU | 自动探测，优先 GPU |
-| macOS | CPU | v1.0 仅 CPU，CoreML 延后至 v1.1 |
+| macOS | CPU | 仅 CPU，CoreML 计划中 |
 
 ## 下一步
 

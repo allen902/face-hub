@@ -14,7 +14,8 @@
 | `width` | `int` | `640` | 请求的采集宽度（像素） |
 | `height` | `int` | `360` | 请求的采集高度（像素） |
 | `fps` | `int` | `30` | 请求的采集帧率 |
-| `backend` | `int` | `None` | OpenCV 后端。`None` 为自动选择。可手动指定如 `cv2.CAP_DSHOW`（Windows DirectShow） |
+
+> **注意：** OpenCV 后端由系统自动选择（Windows: DirectShow, macOS: AVFoundation, Linux: V4L2），无需手动指定。
 
 ## 属性
 
@@ -87,22 +88,14 @@ finally:
     cv2.destroyAllWindows()
 ```
 
-## 与上下文管理器配合使用
+## 上下文管理器
+
+`CameraThread` 支持 `with` 语句，自动管理资源释放：
 
 ```python
-from contextlib import contextmanager
+from face_hub import CameraThread
 
-@contextmanager
-def open_camera(camera_id=0):
-    camera = CameraThread(camera_id=camera_id)
-    camera.start()
-    try:
-        yield camera
-    finally:
-        camera.stop()
-
-# 使用
-with open_camera(0) as cam:
+with CameraThread(camera_id=0) as cam:
     while True:
         frame = cam.get_frame()
         if frame is None:
@@ -110,6 +103,7 @@ with open_camera(0) as cam:
         cv2.imshow("Camera", frame)
         if cv2.waitKey(1) == 27:
             break
+# 退出 with 块时摄像头自动释放
 ```
 
 ## 枚举可用摄像头
@@ -258,26 +252,10 @@ while camera.running:
     # 处理 frame...
 ```
 
-## 自定义后端
-
-在某些平台上需要手动指定 OpenCV 后端以提高兼容性：
-
-```python
-import cv2
-
-# Windows: 使用 DirectShow 后端
-camera = CameraThread(camera_id=0, backend=cv2.CAP_DSHOW)
-
-# macOS: 使用 AVFoundation 后端
-camera = CameraThread(camera_id=0, backend=cv2.CAP_AVFOUNDATION)
-
-# Linux: 使用 V4L2 后端
-camera = CameraThread(camera_id=0, backend=cv2.CAP_V4L2)
-```
-
 ## 注意事项
 
-- **必须调用 `stop()`**：使用完毕后务必调用 `stop()`，否则后台线程和摄像头句柄可能泄漏。
-- **`get_frame()` 返回 `None`**：如果摄像头在上次调用后没有产生新帧，会返回 `None`。在实时循环中直接跳过该帧即可，下次继续调用。
-- **分辨率/帧率是请求值**：实际使用的是摄像头硬件支持的最接近值。可通过 `actual_fps` 属性查看实际帧率，或通过 OpenCV 的 `cv2.CAP_PROP_FRAME_WIDTH` / `cv2.CAP_PROP_FRAME_HEIGHT` 查看实际分辨率。
-- **线程安全**：`CameraThread` 内部使用了锁保护帧缓存，多线程访问 `get_frame()` 是安全的。
+- **必须调用 `stop()`**：使用完毕后务必调用 `stop()`（或使用上下文管理器），否则后台线程和摄像头句柄可能泄漏。
+- **`get_frame()` 返回 `None`**：如果摄像头在超时时间内没有产生新帧，会返回 `None`。在实时循环中直接跳过该帧即可，下次继续调用。
+- **分辨率/帧率是请求值**：实际使用的是摄像头硬件支持的最接近值。可通过 `actual_fps` 属性查看实际帧率。
+- **线程安全**：`CameraThread` 内部使用了锁和条件变量保护帧缓存，多线程访问 `get_frame()` 是安全的，每个线程都会收到帧的独立拷贝。
+- **后端自动选择**：OpenCV 后端由系统自动选择（Windows: DirectShow, macOS: AVFoundation, Linux: V4L2），无需手动配置。

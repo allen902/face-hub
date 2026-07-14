@@ -31,7 +31,7 @@ pip install face-hub[dev]
 ## Platform Notes
 
 - **Windows**: Uses the DirectShow backend for cameras.
-- **macOS**: CPU inference in v1.0; camera backend is AVFoundation.
+- **macOS**: CPU inference only; camera backend is AVFoundation.
 - **Linux**: Camera backend is V4L2.
 
 ## Model License

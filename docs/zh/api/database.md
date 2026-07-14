@@ -82,16 +82,6 @@
 **返回:**
 - `(List[np.ndarray], List[str])`: `(编码列表, 姓名列表)`，两者顺序对应。
 
-### get_person_info(name)
-
-获取某个人员的详细信息。
-
-**参数:**
-- `name` (`str`): 姓名
-
-**返回:**
-- `dict | None`: 包含 `name` 和 `image_path` 的字典，不存在则返回 `None`。
-
 ### clear()
 
 清空数据库并删除持久化文件与所有参考照片。
@@ -123,10 +113,6 @@ print(ok, msg)  # True, "ok"
 
 # 查询所有人员
 print(db.get_names())  # ['Alice']
-
-# 查询详细信息
-info = db.get_person_info("Alice")
-print(info)  # {'name': 'Alice', 'image_path': 'photos/alice.jpg'}
 
 # 删除人员
 ok, msg = db.remove_person("Alice")

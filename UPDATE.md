@@ -1,3 +1,84 @@
+# v1.1.0 更新日志
+
+> **发布日期：** 2026-07-14
+
+---
+
+## ✨ 新功能
+
+### 类型化配置 — `FaceHubSettings`
+
+- 新增 `FaceHubSettings` TypedDict，为所有配置项提供类型提示和自动补全。
+- 配合 `get_default_settings()` 获取可安全修改的默认配置副本。
+- **文件：** [config.py](face_hub/engine/config.py)
+
+### 新增异常类型
+
+| 异常 | 继承自 | 说明 |
+|------|--------|------|
+| `DependencyError` | `ModelLoadError` | 缺少必要的 Python 包（insightface / onnxruntime） |
+| `SerializationError` | `DatabaseError`, `ValueError` | 数据格式错误（JSON 解析 / .npy 损坏） |
+
+- 新增异常提供更精细的错误处理能力，原有 `except ModelLoadError` / `except DatabaseError` 仍可捕获。
+- **文件：** [exceptions.py](face_hub/exceptions.py)
+
+### CameraThread 上下文管理器
+
+- `CameraThread` 现在支持 `with` 语句，退出时自动释放摄像头资源。
+- **文件：** [camera.py](face_hub/engine/camera.py)
+
+---
+
+## 🔧 改进
+
+### CameraThread 后端自动选择
+
+- 移除 `backend` 构造参数，OpenCV 后端由系统自动选择（Windows: DirectShow, macOS: AVFoundation, Linux: V4L2）。
+- 简化 API，减少用户配置负担。
+- **文件：** [camera.py](face_hub/engine/camera.py)
+
+### FaceDetector GPU 推理容错增强
+
+- GPU 推理连续失败 `_MAX_INFERENCE_ERRORS`(3) 次后才触发 CPU 回退，避免单次瞬态错误导致不必要的切换。
+- 新增 `_is_directml_reshape_bug()` 启发式检测 DirectML 1.24.x 的 Reshape bug，自动调整 `det_size` 或回退 CPU。
+- **文件：** [face_detector.py](face_hub/engine/face_detector.py)
+
+### FaceTracker 异常处理
+
+- `FaceTracker.update()` 中识别失败时记录 `logger.debug` 日志，不再静默吞没异常。
+- **文件：** [face_tracker.py](face_hub/engine/face_tracker.py)
+
+### Pipeline 缓存同步优化
+
+- `FaceHubPipeline._process_frame_impl()` 仅在数据库版本号变化时同步编码缓存，避免每帧冗余调用。
+- **文件：** [pipeline.py](face_hub/pipeline.py)
+
+---
+
+## 📖 文档更新
+
+- 异常文档（中/英）：新增 `DependencyError` 和 `SerializationError` 说明，更新异常层级图。
+- Camera 文档（中/英）：移除已废弃的 `backend` 参数，新增上下文管理器用法，更新注意事项。
+- Database 文档（中/英）：移除不存在的 `get_person_info()` 方法。
+- 首页（中/英）：更新 macOS 平台说明。
+
+---
+
+## 📦 升级指南
+
+### 从 v1.0.5 升级
+
+无需手动操作。所有变更均向后兼容。
+
+### 破坏性变更
+
+| 变更 | 影响 | 迁移方式 |
+|------|------|----------|
+| `CameraThread` 移除 `backend` 参数 | 使用 `backend=` 的代码会报错 | 删除 `backend` 参数，后端已自动选择 |
+| `FaceDatabase.get_person_info()` 移除 | 调用该方法的代码会报错 | 改用 `get_names()` 或直接访问 `persons` 列表 |
+
+---
+
 # v1.0.5 更新日志
 
 > **发布日期：** 2026-07-14

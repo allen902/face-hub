@@ -10,9 +10,11 @@ any library error with a single handler.
 ```
 FaceHubError (base)
  ├── ModelLoadError      — model download / ONNX provider / corrupt model
+ │    └── DependencyError — missing Python package (insightface / onnxruntime)
  ├── InferenceError      — ML runtime error (GPU crash + CPU fallback failed)
  ├── CameraError         — camera not connected / in use / unsupported resolution
- ├── DatabaseError       — JSON parse / pickle corrupt / disk full / permission
+ ├── DatabaseError       — JSON parse / disk full / permission
+ │    └── SerializationError — data format error (JSON parse / corrupt .npy)
  └── RecognitionError    — encoding dimension mismatch / empty cache
 ```
 
@@ -39,6 +41,10 @@ except FaceHubError as e:
 Raised when the model file cannot be downloaded, is corrupt, or the requested
 ONNX execution provider is unavailable.
 
+**Attributes:**
+- `model_name` (`str | None`): Which model failed (e.g. `"buffalo_l"`, `"RetinaFace"`).
+- `model_path` (`str | None`): File path that was attempted, if any.
+
 ```python
 from face_hub import FaceDetector
 from face_hub.exceptions import ModelLoadError
@@ -47,10 +53,32 @@ try:
     detector = FaceDetector(device="cuda")
 except ModelLoadError as e:
     print(f"Model load failed: {e}")
+    print(f"  model: {e.model_name}")
     # Possible causes:
     #   1. Network issue downloading buffalo_l (~200 MB)
     #   2. CUDA driver not installed
     #   3. Insufficient disk space
+```
+
+---
+
+## DependencyError
+
+Raised when a required Python package is not installed. Subclass of
+`ModelLoadError`, so `except ModelLoadError` also catches it.
+
+```python
+from face_hub import FaceDetector
+from face_hub.exceptions import DependencyError
+
+try:
+    detector = FaceDetector()
+except DependencyError as e:
+    print(f"Missing dependency: {e}")
+    print(f"  package: {e.model_name}")
+    # Install the missing package:
+    #   pip install insightface
+    #   pip install onnxruntime
 ```
 
 ---
@@ -91,8 +119,11 @@ except CameraError as e:
 
 ## DatabaseError
 
-Raised on database read/write failures — JSON parse errors, corrupt pickle
-files, disk full, or permission issues.
+Raised on database read/write failures — disk full, permission issues, or file
+locking errors.
+
+**Attributes:**
+- `db_path` (`str | None`): Path to the database file that failed.
 
 ```python
 from face_hub import FaceDatabase
@@ -102,6 +133,29 @@ try:
     db = FaceDatabase(db_path="/read_only/face_db.json")
 except DatabaseError as e:
     print(f"Database error: {e}")
+    print(f"  path: {e.db_path}")
+```
+
+---
+
+## SerializationError
+
+Raised on data format errors — JSON parse failures, corrupt `.npy` encoding
+files, or legacy pickle issues. Subclass of both `DatabaseError` and
+`ValueError`, so it can be caught at either level.
+
+```python
+from face_hub import FaceDatabase
+from face_hub.exceptions import SerializationError
+
+try:
+    db = FaceDatabase(db_path="corrupt.json")
+except SerializationError as e:
+    print(f"Data format error: {e}")
+    # Possible causes:
+    #   1. Corrupt JSON file
+    #   2. Corrupt .npy encoding file
+    #   3. Incompatible data format
 ```
 
 ---

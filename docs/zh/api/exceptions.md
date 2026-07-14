@@ -9,9 +9,11 @@ FaceHub 的所有异常都继承自 `FaceHubError`，便于统一捕获和处理
 ```
 FaceHubError (基础异常)
  ├── ModelLoadError      — 模型加载失败（下载失败 / ONNX 提供者不可用 / 模型损坏）
+ │    └── DependencyError — 缺少必要的 Python 包（insightface / onnxruntime）
  ├── InferenceError      — 推理执行错误（GPU 崩溃 + CPU 回退也失败）
  ├── CameraError         — 摄像头未连接 / 被占用 / 不支持的分辨率
- ├── DatabaseError       — JSON 解析 / pickle 损坏 / 磁盘满 / 权限不足
+ ├── DatabaseError       — JSON 解析 / 磁盘满 / 权限不足
+ │    └── SerializationError — 数据格式错误（JSON 解析失败 / .npy 损坏）
  └── RecognitionError    — 编码维度不匹配 / 缓存为空
 ```
 
@@ -36,6 +38,10 @@ except FaceHubError as e:
 
 当模型文件下载失败、损坏或请求的 ONNX 执行提供者不可用时抛出。
 
+**属性:**
+- `model_name` (`str | None`): 失败的模型名称（如 `"buffalo_l"`、`"RetinaFace"`）。
+- `model_path` (`str | None`): 尝试加载的文件路径（如果有）。
+
 ```python
 from face_hub import FaceDetector
 from face_hub.exceptions import ModelLoadError
@@ -44,10 +50,31 @@ try:
     detector = FaceDetector(device="cuda")
 except ModelLoadError as e:
     print(f"模型加载失败: {e}")
+    print(f"  模型: {e.model_name}")
     # 可能的原因:
     #   1. 网络问题导致 buffalo_l 模型下载失败（约 200MB）
     #   2. CUDA 驱动未安装
     #   3. 磁盘空间不足
+```
+
+---
+
+## DependencyError
+
+缺少必要的 Python 包时抛出。是 `ModelLoadError` 的子类，因此 `except ModelLoadError` 也能捕获。
+
+```python
+from face_hub import FaceDetector
+from face_hub.exceptions import DependencyError
+
+try:
+    detector = FaceDetector()
+except DependencyError as e:
+    print(f"缺少依赖: {e}")
+    print(f"  包名: {e.model_name}")
+    # 安装缺失的包:
+    #   pip install insightface
+    #   pip install onnxruntime
 ```
 
 ---
@@ -87,7 +114,10 @@ except CameraError as e:
 
 ## DatabaseError
 
-数据库读写失败时抛出 — JSON 解析错误、pickle 文件损坏、磁盘满或权限问题。
+数据库读写失败时抛出 — 磁盘满、权限问题或文件锁定错误。
+
+**属性:**
+- `db_path` (`str | None`): 失败的数据库文件路径。
 
 ```python
 from face_hub import FaceDatabase
@@ -97,6 +127,28 @@ try:
     db = FaceDatabase(db_path="/read_only/face_db.json")
 except DatabaseError as e:
     print(f"数据库错误: {e}")
+    print(f"  路径: {e.db_path}")
+```
+
+---
+
+## SerializationError
+
+数据格式错误时抛出 — JSON 解析失败、`.npy` 编码文件损坏或旧版 pickle 格式问题。
+同时是 `DatabaseError` 和 `ValueError` 的子类，可在任一层级捕获。
+
+```python
+from face_hub import FaceDatabase
+from face_hub.exceptions import SerializationError
+
+try:
+    db = FaceDatabase(db_path="corrupt.json")
+except SerializationError as e:
+    print(f"数据格式错误: {e}")
+    # 可能的原因:
+    #   1. JSON 文件损坏
+    #   2. .npy 编码文件损坏
+    #   3. 数据格式不兼容
 ```
 
 ---
