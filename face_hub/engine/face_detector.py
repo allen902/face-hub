@@ -5,8 +5,7 @@ Supports GPU acceleration (DirectML/CUDA) with automatic CPU fallback.
 Built-in face quality assessment (blur detection) and model warm-up.
 """
 
-import sys
-from typing import List
+from typing import List, Tuple
 import threading
 import logging
 
@@ -17,6 +16,9 @@ from face_hub.types import DetectionResult, DetectionWithEmbedding, BBox
 from face_hub.exceptions import ModelLoadError, InferenceError
 
 logger = logging.getLogger("face_hub.detector")
+
+# Maximum consecutive inference errors before forcing CPU fallback.
+_MAX_INFERENCE_ERRORS = 3
 
 
 class FaceDetector:
@@ -31,10 +33,8 @@ class FaceDetector:
         if not isinstance(min_face_size, int) or min_face_size < 0:
             raise ValueError(f"min_face_size must be a non-negative int, got {min_face_size}")
 
-        if device == "auto":
-            device = "cuda"
         self.confidence = confidence
-        self.device = device
+        self.device = device  # kept as-is; resolved to actual device in _load_model
         self.det_size = det_size
         self.quality_filter = quality_filter
         self.min_face_size = min_face_size
@@ -46,23 +46,36 @@ class FaceDetector:
         self._warmup()
 
     def _resolve_providers(self, force_cpu=False):
-        """Resolve ONNX Runtime execution providers."""
+        """Resolve ONNX Runtime execution providers.
+
+        Returns (providers, ctx_id, device_label).
+        When self.device is "auto", tries CUDA → DirectML → CPU.
+        When self.device is "cuda", requires a GPU or falls back to CPU
+        (with a warning).
+        When self.device is "cpu", always uses CPU.
+        """
         import onnxruntime as ort
 
         available = ort.get_available_providers()
 
-        if self.device == "cuda" and not force_cpu:
-            if 'CUDAExecutionProvider' in available:
-                return ['CUDAExecutionProvider', 'CPUExecutionProvider'], 0, "GPU(CUDA)"
-            elif 'DmlExecutionProvider' in available:
-                return ['DmlExecutionProvider', 'CPUExecutionProvider'], 0, "GPU(DirectML)"
+        if force_cpu:
+            logger.warning("Inference falling back to CPU mode")
+            return ['CPUExecutionProvider'], -1, "CPU"
+
+        if self.device == "cpu":
+            logger.info("Using CPU")
+            return ['CPUExecutionProvider'], -1, "CPU"
+
+        # "auto" or "cuda" — try GPU providers in preference order.
+        if 'CUDAExecutionProvider' in available:
+            return ['CUDAExecutionProvider', 'CPUExecutionProvider'], 0, "GPU(CUDA)"
+        elif 'DmlExecutionProvider' in available:
+            return ['DmlExecutionProvider', 'CPUExecutionProvider'], 0, "GPU(DirectML)"
+        else:
+            if self.device == "cuda":
+                logger.warning("device='cuda' requested but no GPU provider found, using CPU")
             else:
                 logger.info("No usable GPU found, using CPU")
-                return ['CPUExecutionProvider'], -1, "CPU (no usable GPU)"
-        else:
-            if force_cpu:
-                logger.warning("Inference falling back to CPU mode")
-            logger.info("Using CPU")
             return ['CPUExecutionProvider'], -1, "CPU"
 
     def _create_app(self, det_size):
@@ -75,20 +88,79 @@ class FaceDetector:
         return app, gpu_name
 
     def _load_model(self, fallback_to_cpu=False):
-        """Load the model, auto-detecting CUDA > DirectML > CPU."""
+        """Load the model, auto-detecting CUDA > DirectML > CPU.
+
+        After a successful load, self.device reflects the *actual* device
+        in use (one of "cpu", "cuda"), not the user's original request.
+        """
+        # Release old model resources before creating a new one to prevent
+        # ONNX Runtime from leaking VRAM / memory on reload.
+        if self.app is not None:
+            try:
+                del self.app
+            except Exception:
+                pass
+            self.app = None
+
         try:
-            self.app, gpu_name = self._create_app(self.det_size)
-            logger.info("Model loaded (device=%s, det_size=%d)", gpu_name, self.det_size)
+            self.app, device_label = self._create_app(self.det_size)
+            self._gpu_name = device_label
+            # Sync self.device to the actual provider that was resolved.
+            # "auto" becomes "cpu" or "cuda" depending on hardware.
+            if device_label.startswith("GPU"):
+                self.device = "cuda"
+            else:
+                self.device = "cpu"
+            logger.info("Model loaded (device=%s, det_size=%d)", device_label, self.det_size)
         except ImportError as e:
-            raise ModelLoadError("insightface is not installed") from e
+            # Distinguish insightface vs onnxruntime import failures so the
+            # error message tells the user which package is actually missing.
+            from face_hub.exceptions import DependencyError
+            missing_module = getattr(e, "name", "")
+            if "insightface" in str(e) or missing_module == "insightface":
+                raise DependencyError(
+                    "insightface is not installed",
+                    model_name="insightface",
+                ) from e
+            elif "onnxruntime" in str(e) or "onnx" in missing_module:
+                raise DependencyError(
+                    "onnxruntime is not installed (required by insightface)",
+                    model_name="onnxruntime",
+                ) from e
+            else:
+                raise DependencyError(
+                    f"Missing dependency during model load: {e}",
+                ) from e
         except Exception as e:
-            if not fallback_to_cpu and self.device == "cuda":
+            if not fallback_to_cpu and self.device != "cpu":
+                # GPU load failed — "auto" silently falls back, "cuda" warns.
                 logger.warning("GPU load failed: %s", e)
                 logger.info("Falling back to CPU…")
                 self.device = "cpu"
                 self._load_model(fallback_to_cpu=True)
             else:
-                raise ModelLoadError(f"Failed to load FaceDetector model: {e}") from e
+                raise ModelLoadError(
+                    f"Failed to load FaceDetector model: {e}",
+                    model_name="RetinaFace",
+                ) from e
+
+    def _is_directml_reshape_bug(self, exc: Exception) -> bool:
+        """Detect DirectML 1.24.x Reshape bug heuristically.
+
+        The bug manifests as either a UnicodeDecodeError (corrupted C++ error
+        string leaking into Python) or a reshape/shape-mismatch error from
+        ONNX Runtime when using certain input sizes on DirectML.
+        """
+        err_name = type(exc).__name__
+        if err_name == "UnicodeDecodeError":
+            return True
+        msg = str(exc).lower()
+        # DirectML reshape failures surface as shape/reshape errors.
+        if "reshape" in msg or "shape" in msg:
+            # Only attribute to DirectML if we are actually using it.
+            if self._gpu_name.startswith("GPU(DirectML"):
+                return True
+        return False
 
     def _warmup(self):
         """Warm up the model with a dummy inference and validate it works."""
@@ -103,14 +175,17 @@ class FaceDetector:
 
             # DirectML 1.24.x has a Reshape bug on some input sizes (e.g. 480).
             # Retry with a fresh app at 640, which is known to work.
-            if self.device == "cuda" and "UnicodeDecodeError" in type(e).__name__:
+            if self.device != "cpu" and self._is_directml_reshape_bug(e):
                 try:
                     logger.warning("DirectML incompatible with det_size=%d, retrying with 640", self.det_size)
+                    # Release old app before creating a new one.
+                    old_app = self.app
                     new_app, _ = self._create_app(640)
                     dummy2 = np.random.randint(0, 255, (640, 640, 3), dtype=np.uint8)
                     new_app.get(dummy2)
                     self.app = new_app
                     self.det_size = 640
+                    del old_app
                     logger.info("Auto-adjusted to det_size=640 (DirectML compat)")
                     return
                 except Exception as inner:
@@ -118,7 +193,7 @@ class FaceDetector:
                 logger.warning("DirectML inference failed, falling back to CPU…")
                 self.device = "cpu"
                 self._load_model(fallback_to_cpu=True)
-            elif self.device == "cuda":
+            elif self.device != "cpu":
                 logger.warning("Inference anomaly, attempting CPU switch…")
                 self.device = "cpu"
                 self._load_model(fallback_to_cpu=True)
@@ -166,23 +241,57 @@ class FaceDetector:
         """Run inference with automatic fallback on repeated failures."""
         with self._lock:
             faces = self.app.get(frame)
+            # A successful inference resets the consecutive error counter so
+            # that transient glitches don't accumulate toward the fallback
+            # threshold.
+            self._inference_error_count = 0
         return faces
 
     def _handle_inference_error(self, e, frame):
-        """Handle an inference error, falling back to CPU if needed."""
-        self._inference_error_count += 1
+        """Handle an inference error, falling back to CPU if needed.
+
+        Thread-safe: acquires _lock so that at most one thread performs the
+        fallback while others wait and then retry on the new (CPU) model.
+        """
         err_type = type(e).__name__
 
-        if self.device == "cuda":
-            logger.warning("GPU inference error (%s: %s), switching to CPU…", err_type, e)
-            try:
-                self.device = "cpu"
-                self._load_model(fallback_to_cpu=True)
-                with self._lock:
+        with self._lock:
+            self._inference_error_count += 1
+            err_count = self._inference_error_count
+
+            # Another thread already completed the CPU fallback — just retry.
+            if self.device == "cpu":
+                logger.info("Device already switched to CPU by another thread, retrying…")
+                return self.app.get(frame)
+
+            if self.device != "cpu":
+                # Only trigger fallback after enough consecutive errors to
+                # avoid a single transient GPU glitch causing a switch.
+                if err_count < _MAX_INFERENCE_ERRORS:
+                    logger.warning(
+                        "GPU inference error #%d (%s: %s), will fallback after %d",
+                        err_count, err_type, e, _MAX_INFERENCE_ERRORS,
+                    )
+                    raise InferenceError(
+                        f"GPU inference error ({err_type}): {e}",
+                        device=self.device,
+                    ) from e
+
+                logger.warning("GPU inference error (%s: %s), switching to CPU…", err_type, e)
+                try:
+                    self.device = "cpu"
+                    self._load_model(fallback_to_cpu=True)
+                    self._inference_error_count = 0  # Reset after successful fallback
                     return self.app.get(frame)
-            except Exception as e2:
-                raise InferenceError(f"Inference failed on both GPU and CPU: {e2}") from e2
-        raise InferenceError(f"Inference error on {self.device}: {e}") from e
+                except Exception as e2:
+                    raise InferenceError(
+                        f"Inference failed on both GPU and CPU: {e2}",
+                        device=self.device,
+                    ) from e2
+
+        raise InferenceError(
+            f"Inference error on {self.device}: {e}", device=self.device
+        ) from e
 
     def detect(self, frame) -> List[DetectionResult]:
         """
@@ -277,9 +386,21 @@ class FaceDetector:
             )
         return results
 
-    def extract_face_roi(self, frame, face_rect):
-        """Crop a face region with a small expansion (legacy-compatible interface)."""
-        x1, y1, x2, y2, _ = face_rect
+    def extract_face_roi(self, frame, face_rect: Tuple):
+        """Crop a face region with a small expansion (legacy-compatible interface).
+
+        Accepts either a 4-element (x1, y1, x2, y2) or 5-element
+        (x1, y1, x2, y2, confidence) tuple/list, matching both BBox.to_tuple()
+        and the old (bbox + score) convention.
+        """
+        if len(face_rect) == 5:
+            x1, y1, x2, y2, _ = face_rect
+        elif len(face_rect) == 4:
+            x1, y1, x2, y2 = face_rect
+        else:
+            raise ValueError(
+                f"face_rect must have 4 or 5 elements, got {len(face_rect)}"
+            )
         return self._face_roi(frame, (x1, y1, x2, y2), expand=0.20)
 
     def reload_model(self, det_size=None):

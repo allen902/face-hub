@@ -28,9 +28,12 @@ def _iou(boxA, boxB):
     if inter_area == 0:
         return 0.0
 
-    areaA = (boxA[2] - boxA[0]) * (boxA[3] - boxA[1])
-    areaB = (boxB[2] - boxB[0]) * (boxB[3] - boxB[1])
-    return inter_area / float(areaA + areaB - inter_area)
+    areaA = max(0, boxA[2] - boxA[0]) * max(0, boxA[3] - boxA[1])
+    areaB = max(0, boxB[2] - boxB[0]) * max(0, boxB[3] - boxB[1])
+    denom = areaA + areaB - inter_area
+    if denom <= 0:
+        return 0.0
+    return inter_area / denom
 
 
 class FaceTrack:
@@ -38,7 +41,8 @@ class FaceTrack:
 
     __slots__ = ('id', 'bbox', 'name_history', 'conf_history',
                  'quality_history', 'frames_since_update', 'total_frames',
-                 'confirmed_name', 'confirmed_conf', 'latest_name', 'latest_conf')
+                 'confirmed_name', 'confirmed_conf', 'latest_name', 'latest_conf',
+                 'latest_det_conf')
 
     def __init__(self, track_id, bbox):
         self.id = track_id
@@ -52,8 +56,9 @@ class FaceTrack:
         self.confirmed_conf = 0.0
         self.latest_name = UNKNOWN_SENTINEL
         self.latest_conf = 0.0
+        self.latest_det_conf = 0.0
 
-    def update(self, bbox, name, conf, quality_pass=True):
+    def update(self, bbox, name, conf, quality_pass=True, det_confidence=0.0):
         """Update the track with a new detection."""
         self.bbox = bbox
         self.frames_since_update = 0
@@ -63,10 +68,19 @@ class FaceTrack:
         self.quality_history.append(quality_pass)
         self.latest_name = name
         self.latest_conf = conf
+        self.latest_det_conf = det_confidence
 
     def mark_missed(self):
-        """Mark the track as missed in the current frame."""
+        """Mark the track as missed in the current frame.
+
+        Appends UNKNOWN to the history so that majority voting correctly
+        reflects that no recognition happened this frame (decays confidence
+        for occluded or temporarily-lost faces).
+        """
         self.frames_since_update += 1
+        self.name_history.append(UNKNOWN_SENTINEL)
+        self.conf_history.append(0.0)
+        self.quality_history.append(False)
 
     def is_stale(self, max_missed=10):
         """Return True if the track has expired."""
@@ -221,12 +235,13 @@ class FaceTracker:
                 ti, di = np.unravel_index(np.argmax(iou_matrix), iou_matrix.shape)
                 det = recognized[di]
                 self.tracks[ti].update(
-                    det['bbox'], det['name'], det['conf'], det['quality_pass']
+                    det['bbox'], det['name'], det['conf'],
+                    det['quality_pass'], det['det_conf'],
                 )
                 matched_track_ids.add(ti)
                 matched_det_ids.add(di)
-                iou_matrix[ti, :] = 0
-                iou_matrix[:, di] = 0
+                iou_matrix[ti, :] = -1.0
+                iou_matrix[:, di] = -1.0
 
         # 3. Mark unmatched tracks as missed
         for ti, track in enumerate(self.tracks):
@@ -238,7 +253,8 @@ class FaceTracker:
             if di not in matched_det_ids:
                 new_track = FaceTrack(self._next_id, det['bbox'])
                 self._next_id += 1
-                new_track.update(det['bbox'], det['name'], det['conf'], det['quality_pass'])
+                new_track.update(det['bbox'], det['name'], det['conf'],
+                                 det['quality_pass'], det['det_conf'])
                 self.tracks.append(new_track)
 
         # 5. Remove stale tracks
@@ -248,9 +264,9 @@ class FaceTracker:
         max_history = self.smooth_frames * 3
         for t in self.tracks:
             if len(t.name_history) > max_history:
-                t.name_history = t.name_history[-self.smooth_frames:]
-                t.conf_history = t.conf_history[-self.smooth_frames:]
-                t.quality_history = t.quality_history[-self.smooth_frames:]
+                t.name_history = t.name_history[-max_history:]
+                t.conf_history = t.conf_history[-max_history:]
+                t.quality_history = t.quality_history[-max_history:]
 
         # 7. Resolve identities and build output
         results = []
@@ -264,7 +280,7 @@ class FaceTracker:
                 bbox=BBox(x1=x1, y1=y1, x2=x2, y2=y2),
                 name=display_name,
                 confidence=display_conf,
-                det_confidence=0.0,
+                det_confidence=track.latest_det_conf,
                 is_confirmed=is_confirmed,
                 quality_pass=True,
             ))

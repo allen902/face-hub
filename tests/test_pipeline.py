@@ -1,5 +1,7 @@
 """Test FaceHubPipeline integration (using mock camera)."""
 
+from pathlib import Path
+
 import numpy as np
 from face_hub import (
     FaceHubPipeline, FaceDetector, FaceRecognizer,
@@ -54,10 +56,12 @@ class TestPipeline:
         tracker = FaceTracker()
 
         pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
+        pipeline.start()
         # process_frame with explicit frame (no camera needed)
         result = pipeline.process_frame(frame=sample_frame)
         assert isinstance(result, PipelineResult)
         assert result.fps >= 0.0
+        pipeline.stop()
 
     def test_detect_only(self, temp_db_paths, sample_frame):
         db_path, enc_path = temp_db_paths
@@ -80,7 +84,7 @@ class TestPipeline:
         tracker = FaceTracker()
 
         pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
-        db.add_person("Test", "/tmp/test.jpg", sample_encoding)
+        db.add_person("Test", str(Path(db_path).parent / "test.jpg"), sample_encoding)
         rebuilt = pipeline.update_database_cache()
         assert rebuilt is True
         assert "Test" in recognizer.cached_names

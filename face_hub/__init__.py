@@ -9,7 +9,7 @@ Usage:
     from face_hub.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
 """
 
-__version__ = "1.0.5"
+__version__ = "1.1.0"
 __author__ = "AllenDeng"
 
 # When installed as a package, prefer the metadata version (pyproject.toml).
@@ -46,14 +46,16 @@ from face_hub.types import (
 from face_hub.exceptions import (
     FaceHubError,
     ModelLoadError,
+    DependencyError,
     InferenceError,
     CameraError,
     DatabaseError,
+    SerializationError,
     RecognitionError,
 )
 
 # ── Config ─────────────────────────────────────────────────────
-from face_hub.engine.config import DEFAULT_SETTINGS, get_default_settings
+from face_hub.engine.config import DEFAULT_SETTINGS, FaceHubSettings, get_default_settings
 
 __all__ = [
     # Core
@@ -74,11 +76,14 @@ __all__ = [
     # Exceptions
     "FaceHubError",
     "ModelLoadError",
+    "DependencyError",
     "InferenceError",
     "CameraError",
     "DatabaseError",
+    "SerializationError",
     "RecognitionError",
     # Config
     "DEFAULT_SETTINGS",
+    "FaceHubSettings",
     "get_default_settings",
 ]

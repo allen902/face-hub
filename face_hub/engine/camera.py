@@ -8,11 +8,9 @@ Platform backends:
   - Linux:    V4L2 (cv2.CAP_V4L2)
 """
 
-import atexit
 import cv2
 import threading
 import time
-import os
 import sys
 import logging
 from collections import deque
@@ -21,7 +19,13 @@ logger = logging.getLogger("face_hub.camera")
 
 
 class CameraThread:
-    """Camera capture thread — pure acquisition, no processing."""
+    """Camera capture thread — pure acquisition, no processing.
+
+    Usage::
+
+        with CameraThread(camera_id=0) as cam:
+            frame = cam.get_frame()
+    """
 
     def __init__(self, camera_id=0, width=640, height=360, fps=30):
         if not isinstance(camera_id, int) or camera_id < 0:
@@ -40,23 +44,22 @@ class CameraThread:
         self.cap = None
         self.running = False
         self._frame_buffer = deque(maxlen=1)
-        self.lock = threading.Lock()
         self.thread = None
         self._actual_fps = 0.0
         self._fps_lock = threading.Lock()
-        self._frame_available = threading.Event()
+        # Condition protects _frame_buffer and lets multiple consumers
+        # all receive the same new-frame notification without "stealing".
+        self._frame_cond = threading.Condition(threading.Lock())
 
-        # Suppress DShow hardware transform warnings on Windows.
-        # Done in __init__ (not at module level) to avoid side-effecting
-        # the process environment on import.
-        if sys.platform == "win32":
-            self._orig_env = os.environ.get(
-                "OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"
-            )
-            os.environ["OPENCV_VIDEOIO_MSMF_ENABLE_HW_TRANSFORMS"] = "0"
+    # ── Context manager ─────────────────────────────────────
 
-        # Register cleanup hook so the camera is released on interpreter exit
-        atexit.register(self.stop)
+    def __enter__(self):
+        self.start()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.stop()
+        return False
 
     # ── Platform-aware backend selection ──────────────────────
 
@@ -92,21 +95,26 @@ class CameraThread:
 
         if not self.cap.isOpened():
             from face_hub.exceptions import CameraError
-            raise CameraError(f"Cannot open camera (ID={self.camera_id})")
+            raise CameraError(
+                f"Cannot open camera (ID={self.camera_id})",
+                camera_id=self.camera_id,
+            )
 
         actual_w = self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)
         actual_h = self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
         logger.info("Actual resolution: %dx%d", int(actual_w), int(actual_h))
 
         self.running = True
-        self._frame_available.clear()
         self.thread = threading.Thread(target=self._loop, daemon=True)
         self.thread.start()
 
     def stop(self):
         """Stop camera capture."""
         self.running = False
-        self._frame_available.set()
+        # Wake any threads blocked in get_frame() so they can see
+        # running=False and return None.
+        with self._frame_cond:
+            self._frame_cond.notify_all()
         if self.thread:
             self.thread.join(timeout=2.0)
         if self.cap:
@@ -117,6 +125,10 @@ class CameraThread:
         """
         Thread-safe latest frame retrieval.
 
+        Multiple threads can call this concurrently — each receives the
+        same frame (as a independent copy) without "stealing" it from
+        other consumers.
+
         Args:
             timeout: Max seconds to wait for a new frame.
             copy: If True (default), returns a safe copy. Set False for
@@ -125,13 +137,18 @@ class CameraThread:
         Returns:
             Frame as numpy array, or None if timeout expired.
         """
-        if self._frame_available.wait(timeout):
-            with self.lock:
-                if len(self._frame_buffer) > 0:
-                    frame = self._frame_buffer[0]
-                    self._frame_available.clear()
-                    return frame.copy() if copy else frame
-        return None
+        with self._frame_cond:
+            # Wait until a frame is available or the camera stops.
+            while len(self._frame_buffer) == 0 and self.running:
+                if not self._frame_cond.wait(timeout=timeout):
+                    # Timed out — no frame arrived within the deadline.
+                    return None
+
+            if not self.running or len(self._frame_buffer) == 0:
+                return None
+
+            frame = self._frame_buffer[0]
+            return frame.copy() if copy else frame
 
     def _loop(self):
         """Main capture loop."""
@@ -148,9 +165,10 @@ class CameraThread:
 
             frame = cv2.flip(frame, 1)
 
-            with self.lock:
+            with self._frame_cond:
                 self._frame_buffer.append(frame)
-                self._frame_available.set()
+                # Wake all waiting consumers so each gets a copy.
+                self._frame_cond.notify_all()
 
             fps_counter += 1
             now = time.time()

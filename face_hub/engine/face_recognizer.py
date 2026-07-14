@@ -46,20 +46,28 @@ class FaceRecognizer:
 
         Returns:
             bool — True if the cache was actually rebuilt.
+
+        Raises:
+            ValueError: If encodings and names have different lengths.
         """
         if db_version == self._db_version and self._cached_encodings is not None:
             return False  # cache is still valid
+
+        if len(known_encodings) != len(known_names):
+            raise ValueError(
+                f"known_encodings ({len(known_encodings)}) and "
+                f"known_names ({len(known_names)}) must have the same length"
+            )
 
         if len(known_encodings) == 0:
             self._cached_encodings = None
             self._cached_names = []
         else:
-            # Reuse the existing ndarray when the count is unchanged to avoid allocation.
-            if (self._cached_encodings is not None
-                    and len(known_encodings) == self._cached_encodings.shape[0]):
-                self._cached_encodings[:] = known_encodings
-            else:
-                self._cached_encodings = np.array(known_encodings, dtype=np.float32)
+            mat = np.array(known_encodings, dtype=np.float32)
+            # L2-normalise each row so dot product == cosine similarity
+            norms = np.linalg.norm(mat, axis=1, keepdims=True)
+            np.divide(mat, np.maximum(norms, 1e-12, out=norms), out=mat)
+            self._cached_encodings = mat
             self._cached_names = list(known_names)
 
         self._db_version = db_version
@@ -84,8 +92,17 @@ class FaceRecognizer:
         if known_encodings is not None and len(known_encodings) > 0:
             encodings = np.array(known_encodings, dtype=np.float32)
             names = known_names if known_names else []
+            if len(names) != len(encodings):
+                logger.warning(
+                    "known_encodings (%d) and known_names (%d) length mismatch",
+                    len(encodings), len(names),
+                )
+                return UNKNOWN_SENTINEL, 0.0
+            # L2-normalise gallery rows
+            norms = np.linalg.norm(encodings, axis=1, keepdims=True)
+            np.divide(encodings, np.maximum(norms, 1e-12, out=norms), out=encodings)
         elif self._cached_encodings is not None and len(self._cached_names) > 0:
-            encodings = self._cached_encodings
+            encodings = self._cached_encodings  # already normalised by update_cache
             names = self._cached_names
         else:
             return UNKNOWN_SENTINEL, 0.0
@@ -116,7 +133,7 @@ class FaceRecognizer:
         if norm > 0:
             unknown_encoding = unknown_encoding / norm
 
-        # Cosine similarity (dot product because gallery is already L2-normalized)
+        # Cosine similarity (dot product — both query and gallery are L2-normalised)
         similarities = unknown_encoding @ encodings.T
 
         best_idx = int(np.argmax(similarities))

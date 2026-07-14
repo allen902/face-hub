@@ -15,12 +15,12 @@ import json
 import os
 import logging
 import tempfile
-from contextlib import contextmanager
+import threading
 from pathlib import Path
 
 import numpy as np
 
-from face_hub.exceptions import DatabaseError
+from face_hub.exceptions import DatabaseError, SerializationError
 
 logger = logging.getLogger("face_hub.database")
 
@@ -40,7 +40,8 @@ class FaceDatabase:
         self._version = 0
         self._cached_names = []
         self._safe_dir = self.db_path.parent.resolve()
-        self.load()
+        self._lock = threading.Lock()
+        self._load()
 
     @property
     def version(self):
@@ -48,8 +49,16 @@ class FaceDatabase:
         return self._version
 
     def _validate_image_path(self, image_path: str) -> Path:
-        """Validate that image_path resolves within the safe directory."""
-        resolved = Path(image_path).resolve()
+        """Validate that image_path resolves within the safe directory.
+
+        Relative paths are resolved against the database's parent directory
+        (safe_dir), not the current working directory.
+        """
+        path_obj = Path(image_path)
+        if path_obj.is_absolute():
+            resolved = path_obj.resolve()
+        else:
+            resolved = (self._safe_dir / path_obj).resolve()
         if not resolved.is_relative_to(self._safe_dir):
             raise ValueError(
                 f"image_path '{image_path}' is outside the database directory "
@@ -77,46 +86,24 @@ class FaceDatabase:
                 f"got {getattr(encoding, 'shape', type(encoding))}"
             )
 
-        for person in self.persons:
-            if person["name"] == name:
-                return False, f"Person '{name}' already exists"
+        # Validate path *before* storing — prevents path-traversal in DB records.
+        safe_path = self._validate_image_path(image_path)
 
-        self.persons.append({"name": name, "image_path": image_path})
-        self.encodings.append(encoding)
-        self._cached_names.append(name)
-        self._version += 1
-        self.save()
-        return True, f"Added: {name}"
+        with self._lock:
+            for person in self.persons:
+                if person["name"] == name:
+                    return False, f"Person '{name}' already exists"
+
+            self.persons.append({"name": name, "image_path": str(safe_path)})
+            self.encodings.append(encoding)
+            self._cached_names.append(name)
+            self._version += 1
+            self._save()
+            return True, f"Added: {name}"
 
     def remove_person(self, name: str):
         """Remove a single person."""
-        for i, person in enumerate(self.persons):
-            if person["name"] == name:
-                try:
-                    img_path = self._validate_image_path(person["image_path"])
-                    if img_path.exists():
-                        img_path.unlink(missing_ok=True)
-                except ValueError:
-                    logger.warning(
-                        "Skipping deletion of image for '%s': path outside safe directory",
-                        name,
-                    )
-                del self.persons[i]
-                del self.encodings[i]
-                del self._cached_names[i]
-                self._version += 1
-                self.save()
-                return True, f"Removed: {name}"
-        return False, f"Not found: {name}"
-
-    def remove_persons(self, names: list):
-        """Remove multiple persons at once."""
-        removed = []
-        not_found = []
-        to_remove_indices = []
-
-        for name in names:
-            found = False
+        with self._lock:
             for i, person in enumerate(self.persons):
                 if person["name"] == name:
                     try:
@@ -128,38 +115,74 @@ class FaceDatabase:
                             "Skipping deletion of image for '%s': path outside safe directory",
                             name,
                         )
-                    to_remove_indices.append(i)
-                    removed.append(name)
-                    found = True
-                    break
-            if not found:
-                not_found.append(name)
+                    del self.persons[i]
+                    del self.encodings[i]
+                    del self._cached_names[i]
+                    self._version += 1
+                    self._save()
+                    return True, f"Removed: {name}"
+            return False, f"Not found: {name}"
 
-        # Delete from the back to keep indices valid
-        for i in sorted(to_remove_indices, reverse=True):
-            del self.persons[i]
-            del self.encodings[i]
-            del self._cached_names[i]
+    def remove_persons(self, names: list):
+        """Remove multiple persons at once."""
+        removed = []
+        not_found = []
+        to_remove_indices = set()
 
-        if removed:
-            self._version += 1
-        self.save()
-        return removed, not_found
+        with self._lock:
+            for name in names:
+                found = False
+                for i, person in enumerate(self.persons):
+                    if person["name"] == name:
+                        try:
+                            img_path = self._validate_image_path(person["image_path"])
+                            if img_path.exists():
+                                img_path.unlink(missing_ok=True)
+                        except ValueError:
+                            logger.warning(
+                                "Skipping deletion of image for '%s': path outside safe directory",
+                                name,
+                            )
+                        to_remove_indices.add(i)
+                        removed.append(name)
+                        found = True
+                        break
+                if not found:
+                    not_found.append(name)
+
+            # Delete from the back to keep indices valid
+            for i in sorted(to_remove_indices, reverse=True):
+                del self.persons[i]
+                del self.encodings[i]
+                del self._cached_names[i]
+
+            if removed:
+                self._version += 1
+            self._save()
+            return removed, not_found
 
     def get_names(self) -> list:
         """Return all registered names."""
-        return self._cached_names.copy()
+        with self._lock:
+            return self._cached_names.copy()
 
     def get_encodings_and_names(self) -> tuple:
         """Return (encodings, names). Callers must not mutate the returned lists."""
-        return self.encodings, self._cached_names
+        with self._lock:
+            return self.encodings, self._cached_names
 
     def save(self):
-        """Persist the database to disk (atomic write).
+        """Persist the database to disk (thread-safe, atomic write)."""
+        with self._lock:
+            self._save()
 
-        Writes to temporary files first, then renames to avoid corruption
-        if the process is killed mid-write.
-        """
+    def load(self):
+        """Load the database from disk (thread-safe)."""
+        with self._lock:
+            self._load()
+
+    def _save(self):
+        """Internal save — caller must hold self._lock."""
         try:
             data = {"persons": self.persons}
             # Atomic JSON write
@@ -198,15 +221,17 @@ class FaceDatabase:
             except OSError:
                 pass  # chmod may fail on Windows; not critical
 
-        except (IOError, OSError, ValueError) as e:
-            raise DatabaseError(f"Failed to save database: {e}") from e
+        except (IOError, OSError) as e:
+            raise DatabaseError(
+                f"Failed to save database: {e}", db_path=str(self.db_path)
+            ) from e
+        except ValueError as e:
+            raise SerializationError(
+                f"Failed to serialize database: {e}", db_path=str(self.db_path)
+            ) from e
 
-    def load(self):
-        """Load the database from disk.
-
-        Supports both .npy (new, safe) and legacy .pkl formats.
-        Legacy .pkl files are automatically migrated to .npy on load.
-        """
+    def _load(self):
+        """Internal load — caller must hold self._lock."""
         try:
             if self.db_path.exists():
                 with open(self.db_path, "r", encoding="utf-8") as f:
@@ -216,8 +241,14 @@ class FaceDatabase:
             self.encodings = self._load_encodings()
             self._cached_names = [p["name"] for p in self.persons]
             self._version += 1
-        except (json.JSONDecodeError, IOError) as e:
-            raise DatabaseError(f"Failed to load database: {e}") from e
+        except json.JSONDecodeError as e:
+            raise SerializationError(
+                f"Failed to parse database JSON: {e}", db_path=str(self.db_path)
+            ) from e
+        except IOError as e:
+            raise DatabaseError(
+                f"Failed to load database: {e}", db_path=str(self.db_path)
+            ) from e
 
     def _load_encodings(self) -> list:
         """Load encodings from .npy file, with legacy .pkl migration."""
@@ -265,26 +296,27 @@ class FaceDatabase:
 
     def clear(self):
         """Clear the database and delete persisted files."""
-        for person in self.persons:
-            try:
-                img_path = self._validate_image_path(person["image_path"])
-                if img_path.exists():
-                    img_path.unlink(missing_ok=True)
-            except ValueError:
-                logger.warning(
-                    "Skipping deletion of image for '%s': path outside safe directory",
-                    person["name"],
-                )
+        with self._lock:
+            for person in self.persons:
+                try:
+                    img_path = self._validate_image_path(person["image_path"])
+                    if img_path.exists():
+                        img_path.unlink(missing_ok=True)
+                except ValueError:
+                    logger.warning(
+                        "Skipping deletion of image for '%s': path outside safe directory",
+                        person["name"],
+                    )
 
-        self.persons = []
-        self.encodings = []
-        self._cached_names = []
-        self._version += 1
-        if self.db_path.exists():
-            self.db_path.unlink()
-        if self.encoding_path.exists():
-            self.encoding_path.unlink()
-        # Also clean up any legacy .pkl file
-        legacy = self.encoding_path.with_suffix(_PKL_EXT)
-        if legacy.exists():
-            legacy.unlink(missing_ok=True)
+            self.persons = []
+            self.encodings = []
+            self._cached_names = []
+            self._version += 1
+            if self.db_path.exists():
+                self.db_path.unlink()
+            if self.encoding_path.exists():
+                self.encoding_path.unlink()
+            # Also clean up any legacy .pkl file
+            legacy = self.encoding_path.with_suffix(_PKL_EXT)
+            if legacy.exists():
+                legacy.unlink(missing_ok=True)

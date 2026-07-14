@@ -3,11 +3,10 @@ from __future__ import annotations
 import time
 import threading
 import logging
-from typing import Optional
+from typing import Optional, List
 
 import numpy as np
 
-from typing import List
 from face_hub.types import PipelineResult, DetectionResult, DetectionWithEmbedding
 from face_hub.exceptions import FaceHubError
 from face_hub.detector_protocol import DetectorProtocol
@@ -54,11 +53,11 @@ class FaceHubPipeline:
 
         self._running = False
         self._lock = threading.Lock()
-        self._frame_count = 0
-        self._debug_frame_count = 0     # independent counter for debug logging
+        self._frame_count = 0          # frames since last FPS tick (reset each second)
+        self._total_frame_count = 0    # monotonically increasing total
         self._fps_timer = time.time()
         self._current_fps = 0.0
-        self._last_db_version = -1      # skip redundant cache syncs
+        self._last_db_version = -1     # skip redundant cache syncs
 
     # ── Lifecycle ────────────────────────────────────────────────
 
@@ -66,28 +65,31 @@ class FaceHubPipeline:
     def is_running(self) -> bool:
         return self._running
 
-    def start(self):
+    def start(self) -> None:
         """Start pipeline (starts camera if needed)."""
-        if self._running:
-            return
-        if not self.camera.running:
-            self.camera.start()
-        self._running = True
-        self._fps_timer = time.time()
-        self._frame_count = 0
-        logger.info("Pipeline started")
+        with self._lock:
+            if self._running:
+                return
+            if not self.camera.running:
+                self.camera.start()
+            self._running = True
+            self._fps_timer = time.time()
+            self._frame_count = 0
+            logger.info("Pipeline started")
 
-    def stop(self):
+    def stop(self) -> None:
         """Stop pipeline (stops camera)."""
-        self._running = False
-        if self.camera.running:
-            self.camera.stop()
-        logger.info("Pipeline stopped")
+        with self._lock:
+            self._running = False
+            if self.camera.running:
+                self.camera.stop()
+            logger.info("Pipeline stopped")
 
-    def reset_tracker(self):
+    def reset_tracker(self) -> None:
         """Reset face tracker (e.g. after settings change)."""
-        self.tracker.reset()
-        logger.info("Tracker reset")
+        with self._lock:
+            self.tracker.reset()
+            logger.info("Tracker reset")
 
     # ── Database cache ───────────────────────────────────────────
 
@@ -96,10 +98,15 @@ class FaceHubPipeline:
         Sync recognizer encoding cache with database.
         Returns True if cache was rebuilt.
         """
-        known_encodings, known_names = self.db.get_encodings_and_names()
-        return self.recognizer.update_cache(
-            known_encodings, known_names, self.db.version
-        )
+        with self._lock:
+            version = self.db.version
+            known_encodings, known_names = self.db.get_encodings_and_names()
+            rebuilt = self.recognizer.update_cache(
+                known_encodings, known_names, version
+            )
+            if rebuilt:
+                self._last_db_version = version
+            return rebuilt
 
     # ── Core processing ──────────────────────────────────────────
 
@@ -118,9 +125,11 @@ class FaceHubPipeline:
         Thread-safe via internal lock.
         """
         with self._lock:
+            if not self._running:
+                return None
             return self._process_frame_impl(frame)
 
-    def _process_frame_impl(self, frame) -> Optional[PipelineResult]:
+    def _process_frame_impl(self, frame: Optional[np.ndarray]) -> Optional[PipelineResult]:
         """Internal — caller must hold self._lock."""
 
         # 1. Acquire frame
@@ -150,6 +159,7 @@ class FaceHubPipeline:
 
             # 5. FPS counter
             self._frame_count += 1
+            self._total_frame_count += 1
             now = time.time()
             elapsed = now - self._fps_timer
             if elapsed >= 1.0:
@@ -157,13 +167,12 @@ class FaceHubPipeline:
                 self._frame_count = 0
                 self._fps_timer = now
 
-            # 6. Periodic debug log (independent counter, not reset by FPS)
-            self._debug_frame_count += 1
-            if self._debug_frame_count % 30 == 0:
+            # 6. Periodic debug log
+            if self._total_frame_count % 30 == 0:
                 n_valid = sum(1 for d in detections if d.quality_pass)
                 logger.debug(
                     "Frame #%d: %d faces, %d quality-pass, %d tracks",
-                    self._frame_count, len(detections), n_valid,
+                    self._total_frame_count, len(detections), n_valid,
                     self.tracker.track_count,
                 )
 
@@ -181,12 +190,12 @@ class FaceHubPipeline:
 
     # ── Convenience methods ──────────────────────────────────────
 
-    def detect_only(self, frame: np.ndarray) -> "List[DetectionResult]":
+    def detect_only(self, frame: np.ndarray) -> List[DetectionResult]:
         """Run detection only (no tracking/recognition)."""
         with self._lock:
             return self.detector.detect(frame)
 
-    def extract_embeddings(self, frame: np.ndarray) -> "List[DetectionWithEmbedding]":
+    def extract_embeddings(self, frame: np.ndarray) -> List[DetectionWithEmbedding]:
         """Run detection + embedding extraction (no tracking)."""
         with self._lock:
             return self.detector.detect_with_embeddings(frame)
