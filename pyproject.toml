@@ -39,10 +39,10 @@ gpu-linux = ["onnxruntime-gpu>=1.18.0"]
 dev = ["pytest>=7.0", "build>=0.10", "twine>=4.0"]
 
 [project.urls]
-Homepage = "https://github.com/allen902/face_hub"
-Documentation = "https://allen902.github.io/face_hub"
-Repository = "https://github.com/allen902/face_hub"
-Issues = "https://github.com/allen902/face_hub/issues"
+Homepage = "https://github.com/allen902/face_vision"
+Documentation = "https://allen902.github.io/face_vision/"
+Repository = "https://github.com/allen902/face_vision"
+Issues = "https://github.com/allen902/face_vision/issues"
 
 [tool.setuptools.dynamic]
 version = { attr = "face_hub.__version__" }

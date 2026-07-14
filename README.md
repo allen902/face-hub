@@ -4,7 +4,7 @@
 
 [![Python](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Tests](https://github.com/allen902/face_hub/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face_hub/actions/workflows/publish.yml)
+[![Tests](https://github.com/allen902/face_vision/actions/workflows/publish.yml/badge.svg)](https://github.com/allen902/face_vision/actions/workflows/publish.yml)
 
 ## Features
 

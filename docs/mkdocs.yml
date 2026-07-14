@@ -2,9 +2,9 @@ docs_dir: .
 site_dir: ../site
 site_name: FaceHub
 site_description: Real-time face recognition library — detection, embedding, tracking, and matching.
-site_url: https://allen902.github.io/face_hub
-repo_url: https://github.com/allen902/face_hub
-repo_name: allen902/face_hub
+site_url: https://allen902.github.io/face_vision/
+repo_url: https://github.com/allen902/face_vision
+repo_name: allen902/face_vision
 
 theme:
   name: material
@@ -118,7 +118,7 @@ markdown_extensions:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/allen902/face_hub
+      link: https://github.com/allen902/face_vision
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/face-hub/
 
