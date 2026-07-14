@@ -1,36 +1,142 @@
+docs_dir: .
+site_dir: ../site
 site_name: FaceHub
-theme: material
+site_description: Real-time face recognition library — detection, embedding, tracking, and matching.
+site_url: https://allen902.github.io/face_hub
+repo_url: https://github.com/allen902/face_hub
+repo_name: allen902/face_hub
+
+theme:
+  name: material
+  language: en
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: deep purple
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  font:
+    text: Inter
+    code: JetBrains Mono
+  icon:
+    repo: fontawesome/brands/github
+    logo: material/face-recognition
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.tabs.sticky
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - toc.follow
+
+plugins:
+  - search
+  - tags
+  - i18n:
+      docs_structure: folder
+      languages:
+        - locale: en
+          name: English
+          default: true
+          build: true
+        - locale: zh
+          name: 中文
+          build: true
+          nav_translations:
+            Home: 首页
+            Installation: 安装
+            Quick Start: 快速开始
+            API Reference: API 文档
+            Examples: 示例
+            Pipeline: 流水线
+            Detector: 检测器
+            Recognizer: 识别器
+            Tracker: 追踪器
+            Database: 数据库
+            Camera: 摄像头
+            Types: 类型
+            Exceptions: 异常
+            Basic Webcam: 基础摄像头
+            Custom Detector: 自定义检测器
+
+markdown_extensions:
+  - abbr
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/allen902/face_hub
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/face-hub/
+
+extra_css:
+  - assets/stylesheets/extra.css
+
 nav:
   - Home: index.md
-  - English:
-    - en/index.md
-    - en/installation.md
-    - en/quickstart.md
-    - API Reference:
-      - en/api/pipeline.md
-      - en/api/detector.md
-      - en/api/recognizer.md
-      - en/api/tracker.md
-      - en/api/database.md
-      - en/api/camera.md
-      - en/api/types.md
-      - en/api/exceptions.md
-    - Examples:
-      - en/examples/basic_webcam.md
-      - en/examples/custom_detector.md
-  - 中文:
-    - zh/index.md
-    - zh/installation.md
-    - zh/quickstart.md
-    - API 文档:
-      - zh/api/pipeline.md
-      - zh/api/detector.md
-      - zh/api/recognizer.md
-      - zh/api/tracker.md
-      - zh/api/database.md
-      - zh/api/camera.md
-      - zh/api/types.md
-      - zh/api/exceptions.md
-    - 示例:
-      - zh/examples/basic_webcam.md
-      - zh/examples/custom_detector.md
+  - Installation: installation.md
+  - Quick Start: quickstart.md
+  - API Reference:
+      - Pipeline: api/pipeline.md
+      - Detector: api/detector.md
+      - Recognizer: api/recognizer.md
+      - Tracker: api/tracker.md
+      - Database: api/database.md
+      - Camera: api/camera.md
+      - Types: api/types.md
+      - Exceptions: api/exceptions.md
+  - Examples:
+      - Basic Webcam: examples/basic_webcam.md
+      - Custom Detector: examples/custom_detector.md

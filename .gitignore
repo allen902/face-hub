@@ -80,3 +80,6 @@ key.json
 .ipynb_checkpoints
 */.ipynb_checkpoints/*
 
+# MkDocs build output
+site/
+
