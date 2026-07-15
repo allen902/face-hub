@@ -109,6 +109,8 @@ mkdocs serve -f docs/mkdocs.yml
 
 [![Total Downloads](https://static.pepy.tech/badge/face-hub)](https://pepy.tech/project/face-hub)
 
+## Acknowledgements
+We would like to express our sincere gratitude to **Leon Jane** for voluntarily providing his facial sample data and fully participating in the verification and testing of all functions of the **Face-hub** library. Many program bugs were successfully identified through his efforts, making a crucial contribution to feature improvement and stability optimization of this project.
 ## License
 
 The FaceHub **code** is released under the [MIT License](LICENSE).
@@ -199,7 +201,8 @@ finally:
 
 [![Total Downloads](https://static.pepy.tech/badge/face-hub)](https://pepy.tech/project/face-hub)
 
-
+## 致谢
+在此特别向 **Leon Jane** 致以诚挚谢意。其无偿提供其人脸样本数据，并完整参与 **Face-hub** 库各项功能的验证测试，有效排查多处程序缺陷，为本项目的功能完善与稳定性优化作出关键贡献。
 ## 许可
 
 FaceHub **代码** 采用 [MIT License](LICENSE)。
