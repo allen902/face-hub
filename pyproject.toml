@@ -36,7 +36,7 @@ dependencies = [
 [project.optional-dependencies]
 gpu-win = ["onnxruntime-directml>=1.24.0"]
 gpu-linux = ["onnxruntime-gpu>=1.18.0"]
-dev = ["pytest>=7.0", "build>=0.10", "twine>=4.0"]
+dev = ["pytest>=7.0", "build>=0.10", "twine>=4.0", "psutil>=5.9.0"]
 
 [project.urls]
 Homepage = "https://github.com/allen902/face-hub"
@@ -54,3 +54,9 @@ exclude = ["tests*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "stress: 压力/稳定性测试（默认跳过，通过 --run-stress 启用）",
+    "slow: 真实模型/长时间测试（默认跳过，通过 --run-slow 启用）",
+    "memory: 内存回归测试（默认跳过，通过 --run-memory 启用）",
+    "hardware: 依赖摄像头/GPU 的测试（仅本地执行）",
+]

@@ -5,6 +5,7 @@ DEVELOPER.md
 REFACTOR_PLAN.md
 RELEASE_PLAN.md
 pressuretest.MD
+developer.MD
 # 面部识别相关数据文件
 encodings.pkl
 face_db.json

@@ -1,0 +1,73 @@
+name: Nightly Stress Tests
+
+on:
+  schedule:
+    - cron: "37 3 * * *"      # 03:37 UTC every day
+  workflow_dispatch:           # Manual trigger
+
+jobs:
+  stress-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[dev]"
+          pip install psutil
+
+      - name: Run stress tests
+        run: |
+          python -m pytest tests/stress/ \
+            -m "stress" \
+            --run-stress \
+            -v \
+            --tb=short \
+            --timeout=300 \
+            --junitxml=stress-report.xml
+
+      - name: Run slow benchmark (generate baseline)
+        run: |
+          python -m pytest tests/stress/ \
+            -m "slow" \
+            --run-slow \
+            -v \
+            --tb=long \
+            --timeout=600
+
+      - name: Upload baseline artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stress-results
+          path: |
+            stress-report.xml
+            tests/stress/baseline.json
+
+      - name: Check baseline regression
+        run: |
+          python -c "
+          import json, sys
+          from pathlib import Path
+          baseline = Path('tests/stress/baseline.json')
+          if baseline.exists():
+              data = json.loads(baseline.read_text())
+              errors = []
+              for k, v in data.items():
+                  if k.startswith('_'):
+                      continue
+                  if v.get('p95') and v['p95'] > 2000:
+                      errors.append(f'{k}: p95={v[\"p95\"]:.0f}ms > 2000ms threshold')
+              if errors:
+                  print('REGRESSION DETECTED:')
+                  for e in errors:
+                      print(f'  ❌ {e}')
+                  sys.exit(1)
+              print('✅ All benchmarks within thresholds')
+          "
