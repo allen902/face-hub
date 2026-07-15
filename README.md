@@ -1,10 +1,9 @@
-<div align="right">
 
-### 🌐 [English](#facehub) | [中文](#facehub中文)
-
-</div>
 
 # FaceHub
+### 🌐 [English](#facehub) | [中文](#facehub中文)
+
+
 
 > Real-time face recognition library — detection, embedding, tracking, and matching.
 
@@ -105,6 +104,10 @@ To preview locally:
 pip install -r docs/requirements.txt
 mkdocs serve -f docs/mkdocs.yml
 ```
+## Download Quantity
+[![Monthly Downloads](https://static.pepy.tech/badge/face-hub/month)](https://pepy.tech/project/face-hub)
+
+[![Total Downloads](https://static.pepy.tech/badge/face-hub)](https://pepy.tech/project/face-hub)
 
 ## License
 
@@ -114,13 +117,14 @@ The FaceHub **code** is released under the [MIT License](LICENSE).
 
 ---
 
+
+# FaceHub（中文）
 <div align="right">
 
 ### 🌐 [English](#facehub) | [中文](#facehub中文)
 
 </div>
 
-# FaceHub（中文）
 
 > 实时人脸识别库 — 检测、特征提取、追踪、匹配。
 
@@ -189,6 +193,12 @@ finally:
 ## 文档
 
 📖 **[在线文档](https://allen902.github.io/face-hub/)** — 完整中英 API 文档
+
+## 下载量
+[![Monthly Downloads](https://static.pepy.tech/badge/face-hub/month)](https://pepy.tech/project/face-hub)
+
+[![Total Downloads](https://static.pepy.tech/badge/face-hub)](https://pepy.tech/project/face-hub)
+
 
 ## 许可
 
