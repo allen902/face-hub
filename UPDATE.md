@@ -1,6 +1,6 @@
 # v1.1.0 更新日志
 
-> **发布日期：** 2026-07-14
+> **发布日期：** 2026-07-17
 
 ---
 
@@ -26,6 +26,26 @@
 
 - `CameraThread` 现在支持 `with` 语句，退出时自动释放摄像头资源。
 - **文件：** [camera.py](face_hub/engine/camera.py)
+
+### 压力测试框架
+
+- 新增完整的压力测试套件，覆盖所有核心组件：
+  - `test_camera_stress.py` — 摄像头线程压力测试
+  - `test_database_stress.py` — 数据库并发读写压力测试
+  - `test_detector_stress.py` — 人脸检测器压力测试
+  - `test_pipeline_stress.py` — Pipeline 端到端压力测试
+  - `test_recognizer_stress.py` — 人脸识别器压力测试
+  - `test_tracker_stress.py` — 人脸跟踪器压力测试
+  - `test_real_model_slow.py` — 真实模型长时间运行测试
+- 新增 `conftest.py` 提供 Fake 组件（FakeCamera、FakeDetector、FakeRecognizer）和内存监控工具。
+- 新增 `baseline.json` 性能基线配置。
+- **文件：** [tests/stress/](tests/stress/)
+
+### 夜间压力测试工作流
+
+- 新增 `nightly-stress.yml` GitHub Actions 工作流，每日自动运行压力测试。
+- 支持手动触发，可调整并发数和超时时间。
+- **文件：** [nightly-stress.yml](.github/workflows/nightly-stress.yml)
 
 ---
 
@@ -61,6 +81,15 @@
 - Camera 文档（中/英）：移除已废弃的 `backend` 参数，新增上下文管理器用法，更新注意事项。
 - Database 文档（中/英）：移除不存在的 `get_person_info()` 方法。
 - 首页（中/英）：更新 macOS 平台说明。
+- 压力测试文档：新增 `pressuretest.MD` 详细说明测试策略、基线配置和扩展方法。
+
+---
+
+## ✅ 测试
+
+- 新增 7 个压力测试模块，共计 50+ 测试用例。
+- 新增夜间自动测试工作流，确保长期稳定性。
+- **全部压力测试通过**
 
 ---
 
