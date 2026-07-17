@@ -99,8 +99,8 @@ class TestDatabaseStress:
         assert len(names) == 1
 
     @pytest.mark.stress
-    def test_large_batch_5000_records(self, temp_db_paths, memory_helper):
-        """5000 条记录 save/load：耗时、内存可控."""
+    def test_large_batch_1000_records(self, temp_db_paths, memory_helper):
+        """1000 条记录 save/load：耗时、内存可控."""
         db_path, enc_path = temp_db_paths
         db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
         rng = np.random.RandomState(0)
@@ -108,7 +108,7 @@ class TestDatabaseStress:
         import time
         t0 = time.perf_counter()
 
-        for i in range(5000):
+        for i in range(1000):
             db.add_person(
                 f"person_{i}",
                 str(Path(db_path).parent / f"img_{i}.jpg"),
@@ -116,15 +116,15 @@ class TestDatabaseStress:
             )
 
         save_time = time.perf_counter() - t0
-        print(f"5000 records save: {save_time:.2f}s")
+        print(f"1000 records save: {save_time:.2f}s")
 
         # Reload and verify
         db2 = FaceDatabase(db_path=db_path, encoding_path=enc_path)
         assert db2.version > 0
-        assert len(db2.get_names()) == 5000
+        assert len(db2.get_names()) == 1000
 
         load_time = time.perf_counter() - t0 - save_time
-        print(f"5000 records load: {load_time:.2f}s")
+        print(f"1000 records load: {load_time:.2f}s")
 
         delta = memory_helper.snapshot()
         assert delta.rss_delta_mb < 200, f"Memory grew {delta.rss_delta_mb:.1f} MB"

@@ -36,7 +36,7 @@ dependencies = [
 [project.optional-dependencies]
 gpu-win = ["onnxruntime-directml>=1.24.0"]
 gpu-linux = ["onnxruntime-gpu>=1.18.0"]
-dev = ["pytest>=7.0", "build>=0.10", "twine>=4.0", "psutil>=5.9.0"]
+dev = ["pytest>=7.0", "pytest-timeout>=2.0", "build>=0.10", "twine>=4.0", "psutil>=5.9.0"]
 
 [project.urls]
 Homepage = "https://github.com/allen902/face-hub"
