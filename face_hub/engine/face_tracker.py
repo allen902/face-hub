@@ -42,7 +42,7 @@ class FaceTrack:
     __slots__ = ('id', 'bbox', 'name_history', 'conf_history',
                  'quality_history', 'frames_since_update', 'total_frames',
                  'confirmed_name', 'confirmed_conf', 'latest_name', 'latest_conf',
-                 'latest_det_conf')
+                 'latest_det_conf', 'latest_quality')
 
     def __init__(self, track_id, bbox):
         self.id = track_id
@@ -51,12 +51,13 @@ class FaceTrack:
         self.conf_history = []            # corresponding confidences
         self.quality_history = []         # corresponding quality flags
         self.frames_since_update = 0      # consecutive unmatched frames
-        self.total_frames = 1             # total tracked frames
+        self.total_frames = 0             # total tracked frames
         self.confirmed_name = UNKNOWN_SENTINEL
         self.confirmed_conf = 0.0
         self.latest_name = UNKNOWN_SENTINEL
         self.latest_conf = 0.0
         self.latest_det_conf = 0.0
+        self.latest_quality = True
 
     def update(self, bbox, name, conf, quality_pass=True, det_confidence=0.0):
         """Update the track with a new detection."""
@@ -69,6 +70,7 @@ class FaceTrack:
         self.latest_name = name
         self.latest_conf = conf
         self.latest_det_conf = det_confidence
+        self.latest_quality = quality_pass
 
     def mark_missed(self):
         """Mark the track as missed in the current frame.
@@ -192,28 +194,41 @@ class FaceTracker:
         Returns:
             list of TrackedFace
         """
-        # 1. Recognize each detection
+        # 1. Recognize all detections in one batched call (single matrix
+        #    multiply instead of one numpy call chain per face).
+        names_confs = None
+        if recognizer is not None and any(d.embedding is not None for d in detections):
+            try:
+                names_confs = recognizer.recognize_batch(
+                    [d.embedding for d in detections]
+                )
+            except Exception:
+                logger.debug(
+                    "Batch recognition failed, falling back to per-face",
+                    exc_info=True,
+                )
+                names_confs = None
+
+        if names_confs is None:
+            names_confs = []
+            for det in detections:
+                name, rec_conf = UNKNOWN_SENTINEL, 0.0
+                if det.embedding is not None and recognizer is not None:
+                    try:
+                        name, rec_conf = recognizer.recognize(det.embedding, None, None)
+                    except Exception:
+                        logger.debug("Recognition failed for detection", exc_info=True)
+                names_confs.append((name, rec_conf))
+
         recognized = []
-        for det in detections:
-            bbox = det.bbox.to_tuple()
-            det_conf = det.confidence
-            embedding = det.embedding
-            quality_pass = det.quality_pass
-
-            name, rec_conf = UNKNOWN_SENTINEL, 0.0
-            if embedding is not None and recognizer is not None:
-                try:
-                    name, rec_conf = recognizer.recognize(embedding, None, None)
-                except Exception:
-                    logger.debug("Recognition failed for detection", exc_info=True)
-
+        for det, (name, rec_conf) in zip(detections, names_confs):
             recognized.append({
-                'bbox': bbox,
+                'bbox': det.bbox.to_tuple(),
                 'name': name,
                 'conf': rec_conf,
-                'det_conf': det_conf,
-                'embedding': embedding,
-                'quality_pass': quality_pass,
+                'det_conf': det.confidence,
+                'embedding': det.embedding,
+                'quality_pass': det.quality_pass,
             })
 
         # 2. IoU match detections to existing tracks
@@ -282,7 +297,7 @@ class FaceTracker:
                 confidence=display_conf,
                 det_confidence=track.latest_det_conf,
                 is_confirmed=is_confirmed,
-                quality_pass=True,
+                quality_pass=track.latest_quality,
             ))
 
         return results

@@ -44,12 +44,26 @@ class FaceHubPipeline:
         recognizer: FaceRecognizer,
         tracker: FaceTracker,
         db: FaceDatabase,
+        det_interval: int = 1,
     ):
+        """
+        Args:
+            det_interval: Run the expensive detection/embedding inference
+                once every N frames and reuse the previous tracked result in
+                between (bboxes stay frozen for N-1 frames). 1 = detect every
+                frame (default, original behavior). 2-3 roughly doubles/triples
+                pipeline throughput on CPU with little visible lag at 30 fps.
+        """
+        if not isinstance(det_interval, int) or det_interval < 1:
+            raise ValueError(
+                f"det_interval must be a positive int, got {det_interval}"
+            )
         self.camera = camera
         self.detector = detector
         self.recognizer = recognizer
         self.tracker = tracker
         self.db = db
+        self.det_interval = det_interval
 
         self._running = False
         self._lock = threading.Lock()
@@ -58,6 +72,8 @@ class FaceHubPipeline:
         self._fps_timer = time.time()
         self._current_fps = 0.0
         self._last_db_version = -1     # skip redundant cache syncs
+        self._frames_since_detect = 0  # frames since the last full detection
+        self._last_tracked_faces = None  # reused on skipped (non-detection) frames
 
     # ── Lifecycle ────────────────────────────────────────────────
 
@@ -89,6 +105,7 @@ class FaceHubPipeline:
         """Reset face tracker (e.g. after settings change)."""
         with self._lock:
             self.tracker.reset()
+            self._last_tracked_faces = None
             logger.info("Tracker reset")
 
     # ── Database cache ───────────────────────────────────────────
@@ -121,6 +138,11 @@ class FaceHubPipeline:
 
         Returns:
             PipelineResult, or None if no frame available.
+            Note: result.frame is a shared read-only buffer when it comes
+            from the camera — call frame.copy() before drawing on it.
+            On frames where detection is skipped (see det_interval),
+            raw_detections is empty and tracked_faces repeats the result
+            of the last detected frame.
 
         Thread-safe via internal lock.
         """
@@ -132,9 +154,13 @@ class FaceHubPipeline:
     def _process_frame_impl(self, frame: Optional[np.ndarray]) -> Optional[PipelineResult]:
         """Internal — caller must hold self._lock."""
 
-        # 1. Acquire frame
+        # 1. Acquire frame.
+        # copy=False is safe here: the capture thread appends a brand-new
+        # array every frame and never mutates a published one, so the frame
+        # we hold cannot be overwritten. This avoids a full-frame memcpy per
+        # call — do NOT mutate PipelineResult.frame (call .copy() to draw).
         if frame is None:
-            frame = self.camera.get_frame()
+            frame = self.camera.get_frame(copy=False)
             if frame is None:
                 return None
 
@@ -148,14 +174,25 @@ class FaceHubPipeline:
                 )
                 self._last_db_version = current_version
 
-            # 3. Detect + extract embeddings
-            detections = self.detector.detect_with_embeddings(frame)
+            # 3. Detect + track. Full inference runs every det_interval
+            # frames; in between, the previous tracked result is reused so
+            # the expensive model call is amortised (bboxes stay frozen for
+            # at most det_interval-1 frames).
+            self._frames_since_detect += 1
+            if (self._frames_since_detect >= self.det_interval
+                    or self._last_tracked_faces is None):
+                detections = self.detector.detect_with_embeddings(frame)
 
-            # 4. Track + recognize
-            tracked_faces = self.tracker.update(
-                detections,
-                recognizer=self.recognizer,
-            )
+                # 4. Track + recognize (batched inside the tracker)
+                tracked_faces = self.tracker.update(
+                    detections,
+                    recognizer=self.recognizer,
+                )
+                self._last_tracked_faces = tracked_faces
+                self._frames_since_detect = 0
+            else:
+                detections = []
+                tracked_faces = self._last_tracked_faces
 
             # 5. FPS counter
             self._frame_count += 1

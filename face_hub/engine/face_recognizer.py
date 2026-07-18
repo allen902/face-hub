@@ -73,12 +73,40 @@ class FaceRecognizer:
         self._db_version = db_version
         return True
 
+    def _resolve_gallery(self, known_encodings, known_names):
+        """
+        Pick the gallery to match against: explicit arguments first,
+        otherwise the internal cache.
+
+        Returns:
+            (encodings, names) — L2-normalised (N, D) float32 matrix and
+            name list — or (None, []) when no usable gallery exists.
+        """
+        if known_encodings is not None and len(known_encodings) > 0:
+            encodings = np.array(known_encodings, dtype=np.float32)
+            names = known_names if known_names else []
+            if len(names) != len(encodings):
+                logger.warning(
+                    "known_encodings (%d) and known_names (%d) length mismatch",
+                    len(encodings), len(names),
+                )
+                return None, []
+            # L2-normalise gallery rows
+            norms = np.linalg.norm(encodings, axis=1, keepdims=True)
+            np.divide(encodings, np.maximum(norms, 1e-12, out=norms), out=encodings)
+            return encodings, names
+        if self._cached_encodings is not None and len(self._cached_names) > 0:
+            return self._cached_encodings, self._cached_names  # already normalised
+        return None, []
+
     def recognize(self, unknown_encoding, known_encodings=None, known_names=None):
         """
         1:N recognition: cosine-similarity comparison against the registered gallery.
 
         Backwards-compatible with explicit (known_encodings, known_names),
         but update_cache() is recommended for speed.
+        Note: passing an explicit but *empty* known_encodings falls back to
+        the internal cache.
 
         Args:
             unknown_encoding: np.ndarray (512,) — query face embedding
@@ -88,58 +116,60 @@ class FaceRecognizer:
         Returns:
             (name, confidence) where confidence is in [0.0, 1.0].
         """
-        # Decide between explicit arguments and the internal cache
-        if known_encodings is not None and len(known_encodings) > 0:
-            encodings = np.array(known_encodings, dtype=np.float32)
-            names = known_names if known_names else []
-            if len(names) != len(encodings):
-                logger.warning(
-                    "known_encodings (%d) and known_names (%d) length mismatch",
-                    len(encodings), len(names),
-                )
-                return UNKNOWN_SENTINEL, 0.0
-            # L2-normalise gallery rows
-            norms = np.linalg.norm(encodings, axis=1, keepdims=True)
-            np.divide(encodings, np.maximum(norms, 1e-12, out=norms), out=encodings)
-        elif self._cached_encodings is not None and len(self._cached_names) > 0:
-            encodings = self._cached_encodings  # already normalised by update_cache
-            names = self._cached_names
-        else:
-            return UNKNOWN_SENTINEL, 0.0
+        results = self.recognize_batch(
+            [unknown_encoding],
+            known_encodings=known_encodings,
+            known_names=known_names,
+        )
+        return results[0]
 
-        if unknown_encoding is None or len(names) == 0:
-            return UNKNOWN_SENTINEL, 0.0
+    def recognize_batch(self, unknown_encodings, known_encodings=None, known_names=None):
+        """
+        Batched 1:N recognition — one matrix multiply for the whole frame
+        instead of one numpy call chain per face.
+
+        Args:
+            unknown_encodings: sequence of np.ndarray (512,) — one per face;
+                               None entries are skipped and returned as unknown.
+            known_encodings:   list of np.ndarray — optional explicit gallery
+            known_names:       list of str — optional explicit names
+
+        Returns:
+            list of (name, confidence), same length as unknown_encodings.
+        """
+        results = [(UNKNOWN_SENTINEL, 0.0)] * len(unknown_encodings)
+
+        encodings, names = self._resolve_gallery(known_encodings, known_names)
+        if encodings is None or len(names) == 0:
+            return results
+
+        valid = [(i, e) for i, e in enumerate(unknown_encodings) if e is not None]
+        if not valid:
+            return results
+        idxs = [i for i, _ in valid]
+        mat = np.stack(
+            [np.asarray(e, dtype=np.float32).ravel() for _, e in valid]
+        ).astype(np.float32, copy=False)
 
         # Validate encoding dimension
-        if hasattr(encodings, 'shape') and encodings.ndim == 2:
-            expected_dim = encodings.shape[1]
-        else:
-            expected_dim = 512
-        if hasattr(unknown_encoding, 'shape') and unknown_encoding.size != expected_dim:
+        expected_dim = encodings.shape[1] if encodings.ndim == 2 else 512
+        if mat.shape[1] != expected_dim:
             logger.warning(
-                "Encoding dimension mismatch: query has %d dims, gallery has %d",
-                unknown_encoding.size, expected_dim,
+                "Encoding dimension mismatch: queries have %d dims, gallery has %d",
+                mat.shape[1], expected_dim,
             )
-            return UNKNOWN_SENTINEL, 0.0
+            return results
 
-        # Ensure float32 without unnecessary copies
-        if not isinstance(unknown_encoding, np.ndarray):
-            unknown_encoding = np.asarray(unknown_encoding, dtype=np.float32)
-        elif unknown_encoding.dtype != np.float32:
-            unknown_encoding = unknown_encoding.astype(np.float32)
-        unknown_encoding = unknown_encoding.ravel()
+        # L2-normalise queries (zero vectors stay zero → similarity 0 → unknown)
+        norms = np.linalg.norm(mat, axis=1, keepdims=True)
+        np.divide(mat, np.maximum(norms, 1e-12, out=norms), out=mat)
 
-        norm = np.linalg.norm(unknown_encoding)
-        if norm > 0:
-            unknown_encoding = unknown_encoding / norm
+        # Cosine similarity for every query in one go
+        sims = mat @ encodings.T
+        best_idx = np.argmax(sims, axis=1)
+        best_sim = sims[np.arange(len(idxs)), best_idx]
 
-        # Cosine similarity (dot product — both query and gallery are L2-normalised)
-        similarities = unknown_encoding @ encodings.T
-
-        best_idx = int(np.argmax(similarities))
-        best_sim = float(similarities[best_idx])
-
-        if best_sim < self.tolerance:
-            return UNKNOWN_SENTINEL, 0.0
-
-        return names[best_idx], best_sim
+        for row, i in enumerate(idxs):
+            if best_sim[row] >= self.tolerance:
+                results[i] = (names[int(best_idx[row])], float(best_sim[row]))
+        return results
