@@ -9,7 +9,7 @@ Usage:
     from face_hub.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
 """
 
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 __author__ = "AllenDeng"
 
 # When installed as a package, prefer the metadata version (pyproject.toml).
@@ -27,7 +27,11 @@ from face_hub.engine.face_detector import FaceDetector
 from face_hub.engine.face_recognizer import FaceRecognizer
 from face_hub.engine.face_tracker import FaceTracker
 from face_hub.engine.face_database import FaceDatabase
-from face_hub.engine.photo_classifier import PhotoClassifier, classify_photos
+from face_hub.engine.photo_classifier import (
+    PhotoClassifier,
+    classify_photos,
+    export_to_folders,
+)
 
 # ── Pipeline (from face_hub/ main package) ─────────────────────
 from face_hub.pipeline import FaceHubPipeline
@@ -44,6 +48,7 @@ from face_hub.types import (
     PhotoFace,
     PhotoGroup,
     PhotoClassificationResult,
+    ExportResult,
 )
 
 # ── Exceptions ─────────────────────────────────────────────────
@@ -72,6 +77,7 @@ __all__ = [
     "DetectorProtocol",
     "PhotoClassifier",
     "classify_photos",
+    "export_to_folders",
     # Types
     "UNKNOWN_SENTINEL",
     "BBox",
@@ -82,6 +88,7 @@ __all__ = [
     "PhotoFace",
     "PhotoGroup",
     "PhotoClassificationResult",
+    "ExportResult",
     # Exceptions
     "FaceHubError",
     "ModelLoadError",
