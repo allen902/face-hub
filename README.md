@@ -21,6 +21,7 @@
 - **Tracking**: IoU-based multi-face tracker with majority-vote identity smoothing.
 - **Camera**: cross-platform capture thread (Windows DShow, macOS AVFoundation, Linux V4L2).
 - **Protocol**: `DetectorProtocol` lets you plug in your own detector (YOLO, MediaPipe, etc.).
+- **Photo classification**: group photo collections by the faces in them — gallery matching or fully automatic clustering.
 
 ## Installation
 
@@ -94,6 +95,38 @@ class MyYoloDetector:
 pipeline = FaceHubPipeline(camera, MyYoloDetector(), recognizer, tracker, db)
 ```
 
+## Photo Classification by Face
+
+Group a folder of photos by the people in them. Without a gallery, faces are
+clustered automatically into anonymous groups (`person_001`, …); with a
+registered gallery, known faces are filed under their names and strangers are
+still clustered. A photo containing several people appears in several groups.
+
+```python
+from face_hub import classify_photos
+
+result = classify_photos(["party1.jpg", "party2.jpg", "party3.jpg"])
+
+for label, group in result.groups.items():
+    print(label, "→", group.photo_ids)
+
+print(result.no_face_photos)   # photos with no usable face
+print(result.summary())        # {"person_001": 2, ...}
+```
+
+With a registered gallery (known people filed under their names):
+
+```python
+from face_hub import FaceDetector, FaceRecognizer, PhotoClassifier
+
+detector = FaceDetector(device="auto")
+recognizer = FaceRecognizer(tolerance=0.45)
+recognizer.update_cache(known_encodings, known_names, db_version=1)
+
+classifier = PhotoClassifier(detector, recognizer=recognizer, cluster_threshold=0.45)
+result = classifier.classify_photos(photos, progress_callback=lambda d, t, p: print(f"{d}/{t}"))
+```
+
 ## Documentation
 
 📖 **[Online Documentation](https://allen902.github.io/face-hub/)** — Full API reference in English & 中文
@@ -138,6 +171,7 @@ The FaceHub **code** is released under the [MIT License](LICENSE).
 - **追踪**：基于 IoU 的多目标追踪 + 多数投票身份平滑。
 - **摄像头**：跨平台采集线程（Windows DShow、macOS AVFoundation、Linux V4L2）。
 - **协议**：`DetectorProtocol` 允许接入自定义检测器（YOLO、MediaPipe 等）。
+- **照片分类**：按人脸对照片集自动分组 —— 支持注册人脸库匹配或全自动聚类。
 
 ## 安装
 
@@ -191,6 +225,37 @@ finally:
 ## 自定义检测器
 
 任何满足 `DetectorProtocol` 的对象都可以接入流水线，示例见上文英文部分。
+
+## 按人脸分类照片
+
+把一个文件夹的照片按其中的人物自动分组。无人脸库时，人脸会按特征相似度
+自动聚类为匿名分组（`person_001`……）；提供注册人脸库时，认识的人直接归入
+其姓名分组，陌生人仍会单独聚类。包含多人的照片会同时出现在多个分组中。
+
+```python
+from face_hub import classify_photos
+
+result = classify_photos(["聚会1.jpg", "聚会2.jpg", "聚会3.jpg"])
+
+for label, group in result.groups.items():
+    print(label, "→", group.photo_ids)
+
+print(result.no_face_photos)   # 未检测到可用人脸的照片
+print(result.summary())        # {"person_001": 2, ...}
+```
+
+使用注册人脸库（认识的人归入姓名分组）：
+
+```python
+from face_hub import FaceDetector, FaceRecognizer, PhotoClassifier
+
+detector = FaceDetector(device="auto")
+recognizer = FaceRecognizer(tolerance=0.45)
+recognizer.update_cache(known_encodings, known_names, db_version=1)
+
+classifier = PhotoClassifier(detector, recognizer=recognizer, cluster_threshold=0.45)
+result = classifier.classify_photos(photos, progress_callback=lambda d, t, p: print(f"{d}/{t}"))
+```
 
 ## 文档
 
