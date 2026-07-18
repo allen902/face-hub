@@ -208,6 +208,34 @@ print(result.summary())         # {"person_001": 3, "person_002": 1}
 
 ---
 
+## ExportResult
+
+由 [`export_to_folders()`](classifier.md#export_to_folders) 返回。
+
+```python
+export = export_to_folders(result, "sorted/")
+
+print(export.exported)      # {"person_001": ["sorted/person_001/a.jpg", ...], ...}
+print(export.total_files)   # 写入的文件总数（多人照片按文件夹重复计数）
+print(export.skipped)       # 非真实文件而跳过的照片 id
+print(export.errors)        # 照片 id → 错误信息
+```
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `exported` | `Dict[str, List[str]]` | 文件夹标签 → 写入的文件路径 |
+| `skipped` | `List[str]` | 非真实文件的照片 id（如数组输入） |
+| `errors` | `Dict[str, str]` | 照片 id → 错误信息 |
+
+### 计算属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `total_files` | `int` | 所有文件夹写入的文件总数 |
+| `labels` | `List[str]` | 实际写入文件的文件夹标签 |
+
+---
+
 ## 常量
 
 ```python
