@@ -178,6 +178,92 @@ if result is not None:
 
 ---
 
+## PhotoFace
+
+One face found in one photo. Stored in `PhotoClassificationResult.faces`.
+
+```python
+from face_hub import PhotoFace, BBox
+
+face = PhotoFace(
+    photo_id="party1.jpg",
+    bbox=BBox(100, 50, 300, 250),
+    det_confidence=0.92,
+    label="person_001",
+    similarity=0.71,
+)
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `photo_id` | `str` | Id of the photo the face was found in |
+| `bbox` | `BBox` | Bounding box of the face |
+| `det_confidence` | `float` | Detection confidence `[0.0, 1.0]` |
+| `label` | `str` | Person name, cluster label (`person_001`, ...), or `UNKNOWN_SENTINEL` |
+| `similarity` | `float` | Cosine similarity to the matched person / cluster centroid |
+
+---
+
+## PhotoGroup
+
+A group of photos that contain the same person.
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `label` | `str` | Person name or cluster label |
+| `photo_ids` | `List[str]` | Unique photo ids, in first-appearance order |
+| `face_count` | `int` | Total faces of this person across the group |
+
+### Computed Properties
+
+| Property | Description |
+|----------|-------------|
+| `photo_count` | `len(photo_ids)` |
+
+!!! note
+    A photo containing several people appears in several groups, so
+    `photo_count` values across groups do **not** sum to `total_photos`.
+
+---
+
+## PhotoClassificationResult
+
+Returned by `PhotoClassifier.classify_photos()` and the `classify_photos()`
+helper. See [Photo Classifier](classifier.md) for usage.
+
+```python
+result = classifier.classify_photos(photos)
+
+print(result.groups)            # {"person_001": PhotoGroup(...), ...}
+print(result.no_face_photos)    # photos with no usable face
+print(result.summary())         # {"person_001": 3, "person_002": 1}
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `groups` | `Dict[str, PhotoGroup]` | Label → group, in first-appearance order |
+| `faces` | `List[PhotoFace]` | Every usable face across all photos |
+| `no_face_photos` | `List[str]` | Photos with no usable face |
+| `unreadable_photos` | `List[str]` | Photos that failed to decode |
+| `total_photos` | `int` | Always `len(images)` |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `labels` | `List[str]` | All group labels in first-appearance order |
+| `total_faces` | `int` | `len(faces)` |
+
+### Methods
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `photos_of(label)` | `List[str]` | Photo ids of a person / cluster (empty if unknown label) |
+| `labels_of(photo_id)` | `List[str]` | All labels found in one photo |
+| `summary()` | `Dict[str, int]` | Label → photo count, plus `__no_face__` / `__unreadable__` entries |
+
+---
+
 ## Constants
 
 ### UNKNOWN_SENTINEL
