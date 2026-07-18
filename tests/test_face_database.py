@@ -133,3 +133,77 @@ class TestFaceDatabase:
         # Verify it can be loaded with numpy (no pickle needed)
         data = np.load(enc_path, allow_pickle=False)
         assert data.shape == (1, 512)
+
+    def test_remove_person_keeps_image_by_default(self, temp_db_paths, sample_encoding):
+        """Removing a record must not delete the user's source photo."""
+        db_path, enc_path = temp_db_paths
+        img = Path(_img(db_path, "alice.jpg"))
+        img.write_bytes(b"fake-jpg")
+        try:
+            db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+            db.add_person("Alice", str(img), sample_encoding)
+            ok, _ = db.remove_person("Alice")
+            assert ok is True
+            assert img.exists(), "source photo must survive remove_person()"
+        finally:
+            img.unlink(missing_ok=True)
+
+    def test_remove_person_delete_image_opt_in(self, temp_db_paths, sample_encoding):
+        db_path, enc_path = temp_db_paths
+        img = Path(_img(db_path, "alice.jpg"))
+        img.write_bytes(b"fake-jpg")
+        db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+        db.add_person("Alice", str(img), sample_encoding)
+        ok, _ = db.remove_person("Alice", delete_image=True)
+        assert ok is True
+        assert not img.exists()
+
+    def test_clear_keeps_images_by_default(self, temp_db_paths, sample_encoding):
+        db_path, enc_path = temp_db_paths
+        img = Path(_img(db_path, "alice.jpg"))
+        img.write_bytes(b"fake-jpg")
+        try:
+            db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+            db.add_person("Alice", str(img), sample_encoding)
+            db.clear()
+            assert img.exists(), "source photo must survive clear()"
+        finally:
+            img.unlink(missing_ok=True)
+
+    def test_pkl_suffix_normalized_to_npy(self, temp_db_paths):
+        """A legacy .pkl encoding_path is transparently rewritten to .npy."""
+        db_path, enc_path = temp_db_paths
+        pkl_path = str(Path(enc_path).with_suffix(".pkl"))
+        db = FaceDatabase(db_path=db_path, encoding_path=pkl_path)
+        assert str(db.encoding_path).endswith(".npy")
+
+    def test_legacy_pickle_not_loaded_by_default(self, temp_db_paths, sample_encoding):
+        """Legacy .pkl encodings must NOT be unpickled unless opted in."""
+        import pickle
+        db_path, enc_path = temp_db_paths
+        pkl_path = Path(enc_path).with_suffix(".pkl")
+        with open(pkl_path, "wb") as f:
+            pickle.dump([sample_encoding], f)
+        db = FaceDatabase(db_path=db_path, encoding_path=enc_path)
+        encs, _ = db.get_encodings_and_names()
+        assert encs == [], "pickle file must be ignored by default"
+
+    def test_legacy_pickle_migrated_when_opted_in(self, temp_db_paths, sample_encoding):
+        import pickle
+        db_path, enc_path = temp_db_paths
+        pkl_path = Path(enc_path).with_suffix(".pkl")
+        with open(pkl_path, "wb") as f:
+            pickle.dump([sample_encoding], f)
+        db = FaceDatabase(
+            db_path=db_path, encoding_path=enc_path, allow_legacy_pickle=True
+        )
+        encs, _ = db.get_encodings_and_names()
+        assert len(encs) == 1
+        assert not pkl_path.exists(), "legacy .pkl removed after migration"
+
+    def test_corrupt_npy_raises_serialization_error(self, temp_db_paths):
+        from face_hub.exceptions import SerializationError
+        db_path, enc_path = temp_db_paths
+        Path(enc_path).write_bytes(b"not a numpy file")
+        with pytest.raises(SerializationError):
+            FaceDatabase(db_path=db_path, encoding_path=enc_path)

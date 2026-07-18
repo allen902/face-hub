@@ -5,8 +5,11 @@ Built-in version tracking lets FaceRecognizer caches invalidate efficiently.
 
 Security notes:
   - Embeddings are stored as .npy (numpy native format), NOT pickle, to
-    prevent arbitrary code execution via deserialization.
+    prevent arbitrary code execution via deserialization. Legacy .pkl
+    files are only migrated when allow_legacy_pickle=True.
   - image_path values are validated to prevent path-traversal attacks.
+  - Removing a person never deletes their source photo unless the caller
+    explicitly passes delete_image=True.
   - Database files are written atomically (temp-file + rename) to prevent
     corruption on crash.
 """
@@ -32,9 +35,29 @@ _PKL_EXT = ".pkl"
 class FaceDatabase:
     """Face database — manages registered persons and their embeddings."""
 
-    def __init__(self, db_path="face_db.json", encoding_path="encodings.npy"):
+    def __init__(self, db_path="face_db.json", encoding_path="encodings.npy",
+                 allow_legacy_pickle=False):
+        """
+        Args:
+            db_path: Path to the JSON person registry.
+            encoding_path: Path to the .npy embedding store. A legacy ".pkl"
+                suffix is transparently rewritten to ".npy".
+            allow_legacy_pickle: If True, a legacy pickle encoding file found
+                next to encoding_path is migrated to .npy on load. Defaults to
+                False because pickle deserialization can execute arbitrary
+                code — only enable for files you fully trust.
+        """
         self.db_path = Path(db_path)
         self.encoding_path = Path(encoding_path)
+        if self.encoding_path.suffix.lower() == _PKL_EXT:
+            npy_path = self.encoding_path.with_suffix(_NPY_EXT)
+            logger.warning(
+                "encoding_path '%s' uses the legacy .pkl suffix; "
+                "storing encodings in '%s' instead",
+                self.encoding_path, npy_path,
+            )
+            self.encoding_path = npy_path
+        self._allow_legacy_pickle = bool(allow_legacy_pickle)
         self.persons = []          # [{"name": str, "image_path": str}, ...]
         self.encodings = []        # list of np.ndarray
         self._version = 0
@@ -101,20 +124,20 @@ class FaceDatabase:
             self._save()
             return True, f"Added: {name}"
 
-    def remove_person(self, name: str):
-        """Remove a single person."""
+    def remove_person(self, name: str, *, delete_image: bool = False):
+        """Remove a single person.
+
+        Args:
+            name: Person name to remove.
+            delete_image: Also delete the reference photo from disk.
+                Defaults to False — removing a database record must never
+                destroy the user's source image (it may be the only copy).
+        """
         with self._lock:
             for i, person in enumerate(self.persons):
                 if person["name"] == name:
-                    try:
-                        img_path = self._validate_image_path(person["image_path"])
-                        if img_path.exists():
-                            img_path.unlink(missing_ok=True)
-                    except ValueError:
-                        logger.warning(
-                            "Skipping deletion of image for '%s': path outside safe directory",
-                            name,
-                        )
+                    if delete_image:
+                        self._delete_image_file(person)
                     del self.persons[i]
                     del self.encodings[i]
                     del self._cached_names[i]
@@ -123,8 +146,29 @@ class FaceDatabase:
                     return True, f"Removed: {name}"
             return False, f"Not found: {name}"
 
-    def remove_persons(self, names: list):
-        """Remove multiple persons at once."""
+    def _delete_image_file(self, person: dict) -> None:
+        """Delete a person's image file, refusing paths outside the safe dir.
+
+        Caller must hold self._lock.
+        """
+        try:
+            img_path = self._validate_image_path(person["image_path"])
+            if img_path.exists():
+                img_path.unlink(missing_ok=True)
+        except ValueError:
+            logger.warning(
+                "Skipping deletion of image for '%s': path outside safe directory",
+                person["name"],
+            )
+
+    def remove_persons(self, names: list, *, delete_image: bool = False):
+        """Remove multiple persons at once.
+
+        Args:
+            names: Person names to remove.
+            delete_image: Also delete reference photos from disk (see
+                remove_person). Defaults to False.
+        """
         removed = []
         not_found = []
         to_remove_indices = set()
@@ -134,15 +178,8 @@ class FaceDatabase:
                 found = False
                 for i, person in enumerate(self.persons):
                     if person["name"] == name:
-                        try:
-                            img_path = self._validate_image_path(person["image_path"])
-                            if img_path.exists():
-                                img_path.unlink(missing_ok=True)
-                        except ValueError:
-                            logger.warning(
-                                "Skipping deletion of image for '%s': path outside safe directory",
-                                name,
-                            )
+                        if delete_image:
+                            self._delete_image_file(person)
                         to_remove_indices.add(i)
                         removed.append(name)
                         found = True
@@ -167,9 +204,14 @@ class FaceDatabase:
             return self._cached_names.copy()
 
     def get_encodings_and_names(self) -> tuple:
-        """Return (encodings, names). Callers must not mutate the returned lists."""
+        """Return (encodings, names) as shallow copies.
+
+        Copying the two lists (references only, the ndarrays are shared)
+        keeps a concurrent add/remove from corrupting a recognizer cache
+        rebuild that is already in progress.
+        """
         with self._lock:
-            return self.encodings, self._cached_names
+            return list(self.encodings), list(self._cached_names)
 
     def save(self):
         """Persist the database to disk (thread-safe, atomic write)."""
@@ -241,6 +283,11 @@ class FaceDatabase:
             self.encodings = self._load_encodings()
             self._cached_names = [p["name"] for p in self.persons]
             self._version += 1
+        except SerializationError:
+            # Raised by _load_encodings for corrupt/wrong-shape .npy files.
+            # Must not be re-wrapped as a plain DatabaseError by the IOError
+            # handler below (SerializationError inherits from OSError).
+            raise
         except json.JSONDecodeError as e:
             raise SerializationError(
                 f"Failed to parse database JSON: {e}", db_path=str(self.db_path)
@@ -251,32 +298,62 @@ class FaceDatabase:
             ) from e
 
     def _load_encodings(self) -> list:
-        """Load encodings from .npy file, with legacy .pkl migration."""
+        """Load encodings from .npy file, with optional legacy .pkl migration."""
         enc_path = self.encoding_path
 
         # Try the primary path first
         if enc_path.exists():
             return self._load_npy(enc_path)
 
-        # If the primary path is .npy, also check for a legacy .pkl file
+        # If the primary path is .npy, also check for a legacy .pkl file.
+        # Pickle deserialization can execute arbitrary code, so migration is
+        # opt-in via allow_legacy_pickle.
         if enc_path.suffix == _NPY_EXT:
             legacy_path = enc_path.with_suffix(_PKL_EXT)
             if legacy_path.exists():
-                return self._migrate_pkl_to_npy(legacy_path, enc_path)
+                if self._allow_legacy_pickle:
+                    return self._migrate_pkl_to_npy(legacy_path, enc_path)
+                logger.warning(
+                    "Ignoring legacy pickle encodings file '%s' — pickle "
+                    "deserialization can execute arbitrary code. Pass "
+                    "allow_legacy_pickle=True to FaceDatabase to migrate it "
+                    "to the safe .npy format.",
+                    legacy_path,
+                )
 
         return []
 
     def _load_npy(self, path: Path) -> list:
         """Load encodings from a .npy file."""
-        stacked = np.load(str(path), allow_pickle=False)
+        try:
+            stacked = np.load(str(path), allow_pickle=False)
+        except Exception as e:
+            raise SerializationError(
+                f"Failed to load encodings file '{path}': {e}",
+                db_path=str(path),
+            ) from e
         if stacked.ndim == 2 and stacked.shape[0] > 0:
+            if stacked.shape[1] != 512:
+                raise SerializationError(
+                    f"Encodings file '{path}' has unexpected shape "
+                    f"{stacked.shape}, expected (N, 512)",
+                    db_path=str(path),
+                )
             return [stacked[i] for i in range(stacked.shape[0])]
         return []
 
     def _migrate_pkl_to_npy(self, pkl_path: Path, npy_path: Path) -> list:
-        """Migrate a legacy .pkl encoding file to safe .npy format."""
+        """Migrate a legacy .pkl encoding file to safe .npy format.
+
+        Only called when allow_legacy_pickle=True — pickle.load can execute
+        arbitrary code embedded in the file.
+        """
         import pickle
-        logger.info("Migrating legacy %s to %s", pkl_path.name, npy_path.name)
+        logger.warning(
+            "Migrating legacy %s to %s — only do this with files you trust, "
+            "pickle deserialization can execute arbitrary code",
+            pkl_path.name, npy_path.name,
+        )
         try:
             with open(pkl_path, "rb") as f:
                 encodings = pickle.load(f)
@@ -294,19 +371,18 @@ class FaceDatabase:
             logger.error("Failed to migrate legacy .pkl: %s", e)
             return []
 
-    def clear(self):
-        """Clear the database and delete persisted files."""
+    def clear(self, *, delete_images: bool = False):
+        """Clear the database and delete persisted files.
+
+        Args:
+            delete_images: Also delete the referenced photos from disk.
+                Defaults to False — clearing the registry must not destroy
+                the user's source images.
+        """
         with self._lock:
-            for person in self.persons:
-                try:
-                    img_path = self._validate_image_path(person["image_path"])
-                    if img_path.exists():
-                        img_path.unlink(missing_ok=True)
-                except ValueError:
-                    logger.warning(
-                        "Skipping deletion of image for '%s': path outside safe directory",
-                        person["name"],
-                    )
+            if delete_images:
+                for person in self.persons:
+                    self._delete_image_file(person)
 
             self.persons = []
             self.encodings = []

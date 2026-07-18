@@ -21,6 +21,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import statistics
 import time
 import tracemalloc
@@ -134,18 +135,21 @@ def benchmark_tracker(tracker: FaceTracker, detector: FaceDetector, frame: np.nd
 
 
 def benchmark_pipeline_live(camera_id: int, width: int, height: int,
-                            device: str, det_size: int, frames: int) -> None:
+                            device: str, det_size: int, frames: int,
+                            det_interval: int = 1) -> None:
     """Benchmark the full pipeline with a live camera."""
     print(f"\nLive camera benchmark: camera={camera_id} {width}x{height}")
-    print(f"Detector: device={device}, det_size={det_size}")
+    print(f"Detector: device={device}, det_size={det_size}, det_interval={det_interval}")
 
     camera = CameraThread(camera_id=camera_id, width=width, height=height)
     detector = FaceDetector(device=device, det_size=det_size)
     recognizer = FaceRecognizer(tolerance=0.45)
     tracker = FaceTracker(smooth_frames=5)
-    db = FaceDatabase(db_path="bench_db.json", encoding_path="bench_enc.pkl")
+    db = FaceDatabase(db_path="bench_db.json", encoding_path="bench_enc.npy")
 
-    pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
+    pipeline = FaceHubPipeline(
+        camera, detector, recognizer, tracker, db, det_interval=det_interval
+    )
     pipeline.start()
 
     times: List[float] = []
@@ -169,15 +173,16 @@ def benchmark_pipeline_live(camera_id: int, width: int, height: int,
 
 
 def benchmark_pipeline_synthetic(width: int, height: int, device: str,
-                                 det_size: int, frames: int) -> None:
+                                 det_size: int, frames: int,
+                                 det_interval: int = 1) -> None:
     """Benchmark the full pipeline on synthetic frames."""
     print(f"\nSynthetic frame benchmark: {width}x{height}")
-    print(f"Detector: device={device}, det_size={det_size}")
+    print(f"Detector: device={device}, det_size={det_size}, det_interval={det_interval}")
 
     detector = FaceDetector(device=device, det_size=det_size)
     recognizer = FaceRecognizer(tolerance=0.45)
     tracker = FaceTracker(smooth_frames=5)
-    db = FaceDatabase(db_path="bench_db.json", encoding_path="bench_enc.pkl")
+    db = FaceDatabase(db_path="bench_db.json", encoding_path="bench_enc.npy")
 
     # Mock camera: only implements the attributes Pipeline needs
     class MockCamera:
@@ -189,7 +194,9 @@ def benchmark_pipeline_synthetic(width: int, height: int, device: str,
         def get_frame(self, timeout=None, copy=True):
             return np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
 
-    pipeline = FaceHubPipeline(MockCamera(), detector, recognizer, tracker, db)
+    pipeline = FaceHubPipeline(
+        MockCamera(), detector, recognizer, tracker, db, det_interval=det_interval
+    )
     pipeline.start()
 
     times: List[float] = []
@@ -231,6 +238,8 @@ def main() -> None:
     parser.add_argument("--height", type=int, default=360, help="frame height")
     parser.add_argument("--device", type=str, default="auto", help="cpu/cuda/auto")
     parser.add_argument("--det_size", type=int, default=640, help="320/480/640")
+    parser.add_argument("--det_interval", type=int, default=1,
+                        help="run detection every N frames (1=every frame)")
     parser.add_argument("--frames", type=int, default=300, help="number of frames")
     args = parser.parse_args()
 
@@ -242,18 +251,28 @@ def main() -> None:
     tracemalloc.start()
     t_start = time.perf_counter()
 
-    if args.component:
-        benchmark_components(args.width, args.height, args.device, args.det_size)
+    try:
+        if args.component:
+            benchmark_components(args.width, args.height, args.device, args.det_size)
 
-    if args.synthetic:
-        benchmark_pipeline_synthetic(
-            args.width, args.height, args.device, args.det_size, args.frames
-        )
+        if args.synthetic:
+            benchmark_pipeline_synthetic(
+                args.width, args.height, args.device, args.det_size,
+                args.frames, args.det_interval,
+            )
 
-    if args.live:
-        benchmark_pipeline_live(
-            args.camera, args.width, args.height, args.device, args.det_size, args.frames
-        )
+        if args.live:
+            benchmark_pipeline_live(
+                args.camera, args.width, args.height, args.device,
+                args.det_size, args.frames, args.det_interval,
+            )
+    finally:
+        # Don't leave benchmark database files behind in the working directory
+        for leftover in ("bench_db.json", "bench_enc.npy"):
+            try:
+                os.remove(leftover)
+            except OSError:
+                pass
 
     elapsed = time.perf_counter() - t_start
     current, peak = tracemalloc.get_traced_memory()

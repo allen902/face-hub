@@ -27,7 +27,7 @@ class DetectorProtocol(Protocol):
     def detect(self, frame: np.ndarray) -> List[DetectionResult]:
         """
         Detect all faces in a BGR frame.
-        
+
         Default fallback: Calls detect_with_embeddings and downgrades the results.
         """
         # 真正可运行的默认回退逻辑，避免返回 None 导致崩溃
@@ -35,11 +35,7 @@ class DetectorProtocol(Protocol):
             results = self.detect_with_embeddings(frame)
             # 自动将 DetectionWithEmbedding 转换为基础的 DetectionResult
             return [
-                DetectionResult(
-                    bbox=r.bbox, 
-                    confidence=r.confidence, 
-                    landmarks=getattr(r, 'landmarks', None)
-                ) 
+                DetectionResult(bbox=r.bbox, confidence=r.confidence)
                 for r in results
             ]
         except NotImplementedError:

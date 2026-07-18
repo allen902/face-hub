@@ -112,11 +112,23 @@ class CameraThread:
         """Stop camera capture."""
         self.running = False
         # Wake any threads blocked in get_frame() so they can see
-        # running=False and return None.
+        # running=False and return None. Also drop the buffered frame so a
+        # later restart never serves a stale frame from the previous session.
         with self._frame_cond:
+            self._frame_buffer.clear()
             self._frame_cond.notify_all()
         if self.thread:
             self.thread.join(timeout=2.0)
+            if self.thread.is_alive():
+                # The capture thread is still blocked in cap.read().
+                # Releasing the handle now would race the in-flight read
+                # (potential crash in OpenCV) — defer release to GC instead.
+                logger.warning(
+                    "Capture thread did not exit within 2s; "
+                    "deferring camera release to avoid a use-after-free"
+                )
+                return
+            self.thread = None
         if self.cap:
             self.cap.release()
         self.cap = None

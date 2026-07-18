@@ -65,3 +65,11 @@ class TestFaceTracker:
         assert t.track_count == 1
         t.reset()
         assert t.track_count == 0
+
+    def test_tracked_face_reflects_quality(self):
+        """TrackedFace.quality_pass must mirror the detection, not hardcode True."""
+        t = FaceTracker(smooth_frames=3)
+        results = t.update([make_detection(10, 10, 100, 100, quality=False)])
+        assert results[0].quality_pass is False
+        results = t.update([make_detection(10, 10, 100, 100, quality=True)])
+        assert results[0].quality_pass is True
