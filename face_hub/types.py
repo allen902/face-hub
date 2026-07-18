@@ -204,3 +204,25 @@ class PhotoClassificationResult:
         if self.unreadable_photos:
             out["__unreadable__"] = len(self.unreadable_photos)
         return out
+
+
+@dataclass
+class ExportResult:
+    """
+    Returned by export_to_folders().
+
+    exported maps each folder label to the file paths written inside it.
+    A multi-person photo is exported into every group it belongs to, so
+    total_files may exceed the number of source photos.
+    """
+    exported: Dict[str, List[str]] = field(default_factory=dict)
+    skipped: List[str] = field(default_factory=list)      # photo ids that are not existing files
+    errors: Dict[str, str] = field(default_factory=dict)  # photo id → error message
+
+    @property
+    def total_files(self) -> int:
+        return sum(len(paths) for paths in self.exported.values())
+
+    @property
+    def labels(self) -> List[str]:
+        return list(self.exported.keys())
