@@ -15,20 +15,24 @@ so unknown visitors still get grouped together.
 from __future__ import annotations
 
 import logging
+import re
+import shutil
 from pathlib import Path
-from typing import Callable, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
 import cv2
 import numpy as np
 
 from face_hub.types import (
     UNKNOWN_SENTINEL,
+    ExportResult,
     PhotoClassificationResult,
     PhotoFace,
     PhotoGroup,
 )
 from face_hub.detector_protocol import DetectorProtocol
 from face_hub.engine.face_recognizer import FaceRecognizer
+from face_hub.exceptions import FaceHubError
 
 logger = logging.getLogger("face_hub.photo_classifier")
 
@@ -308,3 +312,129 @@ def classify_photos(
     return classifier.classify_photos(
         images, photo_ids=photo_ids, progress_callback=progress_callback
     )
+
+
+# ── Folder export ──────────────────────────────────────────────
+
+_INVALID_FOLDER_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def _sanitize_folder_name(label: str) -> str:
+    """Make a label safe to use as a folder name on all platforms."""
+    name = _INVALID_FOLDER_CHARS.sub("_", label).strip().strip(".")
+    return name or "_unnamed"
+
+
+def _resolve_conflict(target: Path, on_conflict: str) -> Optional[Path]:
+    """
+    Resolve a filename conflict in the target folder.
+
+    Returns the final path to write, or None to skip this file.
+    """
+    if not target.exists():
+        return target
+    if on_conflict == "overwrite":
+        return target
+    if on_conflict == "skip":
+        return None
+    # "rename" — append _1, _2, ... before the extension
+    for i in range(1, 1000):
+        candidate = target.with_name(f"{target.stem}_{i}{target.suffix}")
+        if not candidate.exists():
+            return candidate
+    raise FaceHubError(f"Could not resolve filename conflict for {target}")
+
+
+def export_to_folders(
+    result: PhotoClassificationResult,
+    output_dir: Union[str, Path],
+    mode: str = "copy",
+    include_no_face: bool = True,
+    no_face_label: str = "_no_face",
+    on_conflict: str = "rename",
+) -> ExportResult:
+    """
+    Export a classification result into per-person folders.
+
+    One folder per group label is created under output_dir. A photo
+    containing several people is exported into **every** folder it
+    belongs to. Only photo ids that point to existing files are
+    exported; others (e.g. array inputs) are reported as skipped.
+
+    Args:
+        result: PhotoClassificationResult from classify_photos().
+        output_dir: Root folder to create person folders in.
+        mode: "copy" (keep originals) or "move".
+        include_no_face: Also export no_face_photos into a folder
+                         named no_face_label.
+        no_face_label: Folder name for photos without a usable face.
+        on_conflict: What to do when a file with the same name already
+                     exists in a target folder —
+                     "rename" (default, append _1, _2, ...),
+                     "skip", or "overwrite".
+
+    Returns:
+        ExportResult with exported paths per label, skipped photo ids,
+        and per-photo error messages.
+
+    Raises:
+        ValueError: On invalid mode or on_conflict values.
+        FaceHubError: If output_dir cannot be created.
+    """
+    if mode not in ("copy", "move"):
+        raise ValueError(f"mode must be 'copy' or 'move', got {mode!r}")
+    if on_conflict not in ("rename", "skip", "overwrite"):
+        raise ValueError(
+            f"on_conflict must be 'rename', 'skip' or 'overwrite', "
+            f"got {on_conflict!r}"
+        )
+
+    root = Path(output_dir)
+    try:
+        root.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        raise FaceHubError(f"Cannot create output_dir {root}: {e}") from e
+
+    export = ExportResult()
+    transfer = shutil.copy2 if mode == "copy" else shutil.move
+    moved_sources: Dict[str, str] = {}  # original photo_id → first exported path
+
+    jobs: List[Tuple[str, str]] = []  # (label, photo_id)
+    for label, group in result.groups.items():
+        jobs.extend((label, photo_id) for photo_id in group.photo_ids)
+    if include_no_face:
+        jobs.extend((no_face_label, photo_id) for photo_id in result.no_face_photos)
+
+    for label, photo_id in jobs:
+        src = Path(photo_id)
+        # In move mode a multi-person photo is moved once, then copied from
+        # its first destination into the remaining folders.
+        already_moved = photo_id in moved_sources
+        if not src.is_file() and not already_moved:
+            if photo_id not in export.skipped:
+                export.skipped.append(photo_id)
+            continue
+
+        folder = root / _sanitize_folder_name(label)
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            target = _resolve_conflict(folder / src.name, on_conflict)
+            if target is None:
+                continue
+            if already_moved:
+                written = shutil.copy2(moved_sources[photo_id], str(target))
+            else:
+                written = transfer(str(src), str(target))
+                if mode == "move":
+                    moved_sources[photo_id] = str(written)
+            export.exported.setdefault(label, []).append(str(written))
+        except (OSError, shutil.Error) as e:
+            export.errors[photo_id] = str(e)
+            logger.warning("Export failed for %s → %s: %s", photo_id, label, e)
+
+    logger.info(
+        "Exported %d file(s) into %d folder(s) under %s (%d skipped, %d errors)",
+        export.total_files, len(export.exported), root,
+        len(export.skipped), len(export.errors),
+    )
+    return export
