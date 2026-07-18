@@ -264,6 +264,34 @@ print(result.summary())         # {"person_001": 3, "person_002": 1}
 
 ---
 
+## ExportResult
+
+Returned by [`export_to_folders()`](classifier.md#export_to_folders).
+
+```python
+export = export_to_folders(result, "sorted/")
+
+print(export.exported)      # {"person_001": ["sorted/person_001/a.jpg", ...], ...}
+print(export.total_files)   # total files written (multi-person photos counted per folder)
+print(export.skipped)       # photo ids that are not existing files
+print(export.errors)        # photo id → error message
+```
+
+| Attribute | Type | Description |
+|-----------|------|-------------|
+| `exported` | `Dict[str, List[str]]` | Folder label → written file paths |
+| `skipped` | `List[str]` | Photo ids that are not existing files (e.g. array inputs) |
+| `errors` | `Dict[str, str]` | Photo id → error message |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `total_files` | `int` | Total files written across all folders |
+| `labels` | `List[str]` | Folder labels that received files |
+
+---
+
 ## Constants
 
 ### UNKNOWN_SENTINEL
