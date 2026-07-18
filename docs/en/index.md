@@ -12,6 +12,7 @@ and camera capture.
 - IoU multi-object tracking + majority-vote identity smoothing
 - Cross-platform camera capture thread
 - `DetectorProtocol` for plugging in custom detectors
+- Photo classification by face — gallery matching or automatic clustering
 
 ## Platform Support
 
