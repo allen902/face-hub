@@ -398,6 +398,7 @@ def export_to_folders(
     export = ExportResult()
     transfer = shutil.copy2 if mode == "copy" else shutil.move
     moved_sources: Dict[str, str] = {}  # original photo_id → first exported path
+    skipped_seen = set()                # O(1) membership for export.skipped
 
     jobs: List[Tuple[str, str]] = []  # (label, photo_id)
     for label, group in result.groups.items():
@@ -411,7 +412,8 @@ def export_to_folders(
         # its first destination into the remaining folders.
         already_moved = photo_id in moved_sources
         if not src.is_file() and not already_moved:
-            if photo_id not in export.skipped:
+            if photo_id not in skipped_seen:
+                skipped_seen.add(photo_id)
                 export.skipped.append(photo_id)
             continue
 

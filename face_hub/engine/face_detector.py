@@ -313,8 +313,9 @@ class FaceDetector:
 
         results = []
         for face in faces:
-            bbox = face.bbox.astype(int)
-            x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+            # Convert to Python ints so BBox stays JSON-serialisable
+            # (face.bbox holds numpy scalars)
+            x1, y1, x2, y2 = (int(v) for v in face.bbox)
             conf = float(face.det_score) if hasattr(face, 'det_score') else 0.95
             if conf >= self.confidence:
                 results.append(DetectionResult(
@@ -350,8 +351,7 @@ class FaceDetector:
 
         results = []
         for face in faces:
-            bbox = face.bbox.astype(int)
-            x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
+            x1, y1, x2, y2 = (int(v) for v in face.bbox)
             det_conf = float(face.det_score) if hasattr(face, 'det_score') else 0.95
 
             if det_conf < self.confidence:
