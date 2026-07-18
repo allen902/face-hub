@@ -5,6 +5,8 @@ Uses a stub detector returning synthetic 512-dim embeddings — no model
 download, no insightface, no camera required.
 """
 
+import os
+
 import numpy as np
 import pytest
 
@@ -13,6 +15,7 @@ from face_hub.engine.face_recognizer import FaceRecognizer
 from face_hub.engine.photo_classifier import (
     PhotoClassifier,
     classify_photos,
+    export_to_folders,
     _EmbeddingClusterer,
 )
 
@@ -219,3 +222,127 @@ class TestOneShotHelper:
         summary = result.summary()
         assert summary["person_001"] == 1
         assert summary["__no_face__"] == 1
+
+
+# ── Folder export ───────────────────────────────────────────────
+
+def _write_photo(path, value=128):
+    """Write a real (tiny) JPEG so cv2.imread succeeds."""
+    import cv2
+    img = np.full((32, 32, 3), value, dtype=np.uint8)
+    assert cv2.imwrite(str(path), img)
+    return str(path)
+
+
+def _classified_fixture(tmp_path):
+    """
+    4 photos: p1=A, p2=A+B, p3=B, p4=no face.
+    Returns (result, photo_paths).
+    """
+    seed_a, seed_b = _person_seed(1), _person_seed(2)
+    photos = [
+        _write_photo(tmp_path / "p1.jpg", 10),
+        _write_photo(tmp_path / "p2.jpg", 20),
+        _write_photo(tmp_path / "p3.jpg", 30),
+        _write_photo(tmp_path / "p4.jpg", 40),
+    ]
+    detector = StubDetector([
+        [_det(_make_embedding(seed_a))],
+        [_det(_make_embedding(seed_a)), _det(_make_embedding(seed_b))],
+        [_det(_make_embedding(seed_b))],
+        [],
+    ])
+    result = PhotoClassifier(detector).classify_photos(photos)
+    return result, photos
+
+
+class TestExportToFolders:
+    def test_copy_mode_creates_per_person_folders(self, tmp_path):
+        result, photos = _classified_fixture(tmp_path)
+        out = tmp_path / "sorted"
+        export = export_to_folders(result, out)
+
+        # person_001 → p1, p2 / person_002 → p2, p3 / _no_face → p4
+        assert sorted(os.listdir(out / "person_001")) == ["p1.jpg", "p2.jpg"]
+        assert sorted(os.listdir(out / "person_002")) == ["p2.jpg", "p3.jpg"]
+        assert os.listdir(out / "_no_face") == ["p4.jpg"]
+        assert export.total_files == 5          # multi-person photo counted twice
+        assert export.skipped == []
+        assert export.errors == {}
+        # copy keeps originals
+        for p in photos:
+            assert os.path.isfile(p)
+
+    def test_move_mode_removes_originals(self, tmp_path):
+        result, photos = _classified_fixture(tmp_path)
+        out = tmp_path / "sorted"
+        export_to_folders(result, out, mode="move")
+
+        assert not os.path.exists(photos[0])                    # p1 moved
+        assert os.path.isfile(out / "person_001" / "p1.jpg")
+        assert os.path.isfile(out / "person_002" / "p2.jpg")    # p2's second export
+
+    def test_include_no_face_false(self, tmp_path):
+        result, _ = _classified_fixture(tmp_path)
+        out = tmp_path / "sorted"
+        export_to_folders(result, out, include_no_face=False)
+        assert not (out / "_no_face").exists()
+
+    def test_non_file_photo_ids_are_skipped(self):
+        seed = _person_seed(1)
+        detector = StubDetector([[_det(_make_embedding(seed))]])
+        result = PhotoClassifier(detector).classify_photos([_BLANK])  # array input
+        export = export_to_folders(result, "unused_out")
+        assert export.skipped == ["image_0001"]
+        assert export.total_files == 0
+
+    def test_conflict_rename(self, tmp_path):
+        result, _ = _classified_fixture(tmp_path)
+        out = tmp_path / "sorted"
+        # Pre-create a conflicting file
+        (out / "person_001").mkdir(parents=True)
+        (out / "person_001" / "p1.jpg").write_bytes(b"old")
+
+        export_to_folders(result, out, on_conflict="rename")
+        files = sorted(os.listdir(out / "person_001"))
+        assert files == ["p1.jpg", "p1_1.jpg", "p2.jpg"]
+        assert (out / "person_001" / "p1.jpg").read_bytes() == b"old"  # untouched
+
+    def test_conflict_skip_and_overwrite(self, tmp_path):
+        result, _ = _classified_fixture(tmp_path)
+
+        out1 = tmp_path / "s1"
+        (out1 / "person_001").mkdir(parents=True)
+        (out1 / "person_001" / "p1.jpg").write_bytes(b"old")
+        export_to_folders(result, out1, on_conflict="skip")
+        assert (out1 / "person_001" / "p1.jpg").read_bytes() == b"old"
+        assert not (out1 / "person_001" / "p1_1.jpg").exists()
+
+        out2 = tmp_path / "s2"
+        (out2 / "person_001").mkdir(parents=True)
+        (out2 / "person_001" / "p1.jpg").write_bytes(b"old")
+        export_to_folders(result, out2, on_conflict="overwrite")
+        assert (out2 / "person_001" / "p1.jpg").read_bytes() != b"old"
+
+    def test_sanitizes_folder_names(self, tmp_path):
+        seed = _person_seed(1)
+        detector = StubDetector([[_det(_make_embedding(seed))]])
+        result = PhotoClassifier(detector).classify_photos(
+            [_write_photo(tmp_path / "x.jpg")], photo_ids=[str(tmp_path / "x.jpg")]
+        )
+        # Forge an unsafe label
+        group = result.groups.pop("person_001")
+        group.label = 'weird<>:"/\\|?*name'
+        result.groups['weird<>:"/\\|?*name'] = group
+
+        out = tmp_path / "sorted"
+        export_to_folders(result, out)
+        folders = os.listdir(out)
+        assert folders == ["weird_________name"]
+
+    def test_invalid_arguments(self, tmp_path):
+        result, _ = _classified_fixture(tmp_path)
+        with pytest.raises(ValueError, match="mode"):
+            export_to_folders(result, tmp_path / "o", mode="delete")
+        with pytest.raises(ValueError, match="on_conflict"):
+            export_to_folders(result, tmp_path / "o", on_conflict="explode")
