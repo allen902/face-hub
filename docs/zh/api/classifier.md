@@ -7,10 +7,10 @@
 - **人脸库模式**（传入 `FaceRecognizer`）：匹配到已注册人员的人脸直接归入其
   姓名分组；匹配不上的人脸会落入聚类流程，陌生人依然能被自动分组。
 
-!!! note "分类器不会做什么"
-    `PhotoClassifier` 只**在内存中**计算分组结果 —— 不会移动、复制或重命名
-    任何文件。包含多人的照片会**同时出现在多个分组**中（如需把结果落地为按人
-    分类的文件夹，见[导出到文件夹](#_6)）。
+!!! note "分类与导出"
+    `classify_photos()` 只**在内存中**计算分组结果 —— 不会移动、复制或重命名
+    任何文件。包含多人的照片会**同时出现在多个分组**中。如需把结果落地为按人
+    分类的文件夹，请使用内置的 [`export_to_folders()`](#export_to_folders)。
 
 ---
 
@@ -125,32 +125,46 @@ for face in result.faces:
     print(face.photo_id, face.label, face.bbox.to_tuple(), f"{face.similarity:.2f}")
 ```
 
-## 导出到文件夹
+## export_to_folders() 导出到文件夹
 
-分类器只在内存中返回分组结果。如需落地为按人分类的文件夹，请自行复制
-文件 —— 注意多人合影会被复制到**每一个**相关人物的文件夹：
+把分类结果落地为按人分类的文件夹 —— 在 `output_dir` 下为每个分组标签创建
+一个文件夹。包含多人的照片会导出到**每一个**相关人物的文件夹（`move` 模式
+下先移动到第一个文件夹，再从那里复制到其余文件夹）。
 
 ```python
-import shutil
-from pathlib import Path
-from face_hub import classify_photos
+from face_hub import classify_photos, export_to_folders
 
-photos = list(Path("incoming").glob("*.jpg"))
 result = classify_photos(photos)
+export = export_to_folders(result, "sorted/", mode="copy")
 
-out_root = Path("sorted")
-for label, group in result.groups.items():
-    folder = out_root / label
-    folder.mkdir(parents=True, exist_ok=True)
-    for photo_id in group.photo_ids:
-        shutil.copy2(photo_id, folder / Path(photo_id).name)
+# sorted/
+# ├── person_001/  a.jpg, c.jpg
+# ├── person_002/  b.jpg
+# └── _no_face/    d.jpg
 
-# 未检测到可用人脸的照片
-no_face = out_root / "_no_face"
-no_face.mkdir(exist_ok=True)
-for photo_id in result.no_face_photos:
-    shutil.copy2(photo_id, no_face / Path(photo_id).name)
+print(export.total_files)  # 4
+print(export.skipped)      # 非文件输入（如数组）被跳过的照片 id
+print(export.errors)       # 照片 id → 错误信息
 ```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `result` | `PhotoClassificationResult` | *（必填）* | `classify_photos()` 的返回结果 |
+| `output_dir` | `str \| Path` | *（必填）* | 人物文件夹的根目录 |
+| `mode` | `str` | `"copy"` | `"copy"` 保留原文件，`"move"` 移动原文件 |
+| `include_no_face` | `bool` | `True` | 同时导出 `no_face_photos` 到独立文件夹 |
+| `no_face_label` | `str` | `"_no_face"` | 无人脸照片的文件夹名 |
+| `on_conflict` | `str` | `"rename"` | 同名文件策略：`"rename"`（追加 `_1`、`_2`……）、`"skip"` 或 `"overwrite"` |
+
+**返回：** `ExportResult` —— `exported`（标签 → 写入路径）、`skipped`、
+`errors`、`total_files`、`labels`，见[类型文档](types.md#exportresult)。
+
+**抛出：** `mode` / `on_conflict` 非法时抛 `ValueError`；`output_dir`
+无法创建时抛 `FaceHubError`。
+
+!!! tip
+    文件夹名会做跨平台安全处理（`<>:"/\|?*` 及控制字符替换为 `_`）。
+    只有指向真实文件的照片 id 会被导出 —— 数组输入会进入 `skipped`。
 
 ## 进度回调
 
