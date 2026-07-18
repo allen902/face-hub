@@ -263,3 +263,352 @@
     padding-right: 1rem;
   }
 }
+
+/* ════════════════════════════════════════════════════════════
+   FaceHub — Tech hero & sci-fi styling
+   ════════════════════════════════════════════════════════════ */
+
+:root {
+  --fh-cyan: #22d3ee;
+  --fh-violet: #a78bfa;
+  --fh-glow: 0 0 18px rgba(34, 211, 238, 0.45);
+}
+
+/* ── Hero container ── */
+.md-typeset .fh-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  margin: 0.4rem 0 1.6rem;
+  padding: 3.2rem 2rem 2.6rem;
+  text-align: center;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% -5%, rgba(34, 211, 238, 0.16), transparent 65%),
+    radial-gradient(ellipse 45% 40% at 85% 105%, rgba(167, 139, 250, 0.14), transparent 60%),
+    linear-gradient(160deg, #0b1220 0%, #0e1628 55%, #111a30 100%);
+  border: 1px solid rgba(34, 211, 238, 0.22);
+  box-shadow: 0 12px 40px rgba(2, 8, 23, 0.45), inset 0 0 60px rgba(34, 211, 238, 0.04);
+}
+
+/* grid overlay */
+.md-typeset .fh-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.055) 1px, transparent 1px);
+  background-size: 36px 36px;
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 40%, #000 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 40%, #000 30%, transparent 75%);
+  pointer-events: none;
+}
+
+/* scanline sweep */
+.md-typeset .fh-hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30%;
+  height: 30%;
+  background: linear-gradient(180deg, transparent, rgba(34, 211, 238, 0.06), transparent);
+  animation: fh-scan 7s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes fh-scan {
+  0%   { top: -30%; }
+  100% { top: 110%; }
+}
+
+.md-typeset .fh-hero canvas#fh-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.md-typeset .fh-hero-content {
+  position: relative;
+  z-index: 1;
+}
+
+/* ── Hero badge ── */
+.md-typeset .fh-hero-badge {
+  display: inline-block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  color: var(--fh-cyan);
+  border: 1px solid rgba(34, 211, 238, 0.45);
+  border-radius: 999px;
+  padding: 0.22rem 0.9rem;
+  margin-bottom: 1.1rem;
+  background: rgba(34, 211, 238, 0.07);
+  text-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+}
+
+/* ── Hero title ── */
+.md-typeset .fh-hero-title {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 0 0 0.7rem;
+  color: #e6f1ff;
+  border: none;
+}
+
+.md-typeset .fh-hero-title .fh-glow {
+  background: linear-gradient(90deg, var(--fh-cyan), var(--fh-violet), var(--fh-cyan));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: fh-gradient 4s linear infinite;
+  filter: drop-shadow(0 0 14px rgba(34, 211, 238, 0.55));
+}
+
+@keyframes fh-gradient {
+  to { background-position: 200% center; }
+}
+
+/* ── Typing tagline ── */
+.md-typeset .fh-hero-typing {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  color: #9db4d0;
+  min-height: 1.6em;
+  margin: 0 0 1.5rem;
+}
+
+.md-typeset .fh-cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: var(--fh-cyan);
+  box-shadow: var(--fh-glow);
+  animation: fh-blink 0.9s steps(2) infinite;
+}
+
+@keyframes fh-blink {
+  50% { opacity: 0; }
+}
+
+/* ── Hero buttons ── */
+.md-typeset .fh-hero-actions {
+  display: flex;
+  gap: 0.8rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-bottom: 2rem;
+}
+
+.md-typeset .fh-btn {
+  display: inline-block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 0.55rem 1.5rem;
+  border-radius: 8px;
+  text-decoration: none !important;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.md-typeset .fh-btn--primary {
+  color: #041018 !important;
+  background: linear-gradient(90deg, var(--fh-cyan), #67e8f9);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.45);
+}
+
+.md-typeset .fh-btn--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 32px rgba(34, 211, 238, 0.7);
+}
+
+.md-typeset .fh-btn--ghost {
+  color: var(--fh-cyan) !important;
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  background: rgba(34, 211, 238, 0.05);
+}
+
+.md-typeset .fh-btn--ghost:hover {
+  transform: translateY(-2px);
+  background: rgba(34, 211, 238, 0.14);
+  box-shadow: var(--fh-glow);
+}
+
+/* ── Stats row ── */
+.md-typeset .fh-stats {
+  display: flex;
+  justify-content: center;
+  gap: 2.6rem;
+  flex-wrap: wrap;
+}
+
+.md-typeset .fh-stat {
+  text-align: center;
+}
+
+.md-typeset .fh-stat-num {
+  display: block;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--fh-cyan);
+  text-shadow: 0 0 14px rgba(34, 211, 238, 0.55);
+}
+
+.md-typeset .fh-stat-label {
+  font-size: 0.7rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7e93b2;
+}
+
+/* ── Section title accent ── */
+.md-typeset h2.fh-section {
+  border: none;
+  padding: 0;
+  margin-top: 2.2rem;
+  font-size: 1.3rem;
+}
+
+.md-typeset h2.fh-section::before {
+  content: "// ";
+  color: var(--fh-cyan);
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* ── Tech feature cards (upgrade of .card) ── */
+.md-typeset .fh-card {
+  position: relative;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  background: linear-gradient(160deg, rgba(34, 211, 238, 0.045), transparent 55%);
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
+}
+
+.md-typeset .fh-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--fh-cyan), transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.md-typeset .fh-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(34, 211, 238, 0.55);
+  box-shadow: 0 8px 26px rgba(34, 211, 238, 0.14);
+}
+
+.md-typeset .fh-card:hover::before {
+  opacity: 1;
+}
+
+.md-typeset .fh-card h3 {
+  margin-top: 0;
+  font-size: 0.95rem;
+  color: var(--md-accent-fg-color);
+}
+
+.md-typeset .fh-card .fh-card-icon {
+  font-size: 1.3rem;
+  display: block;
+  margin-bottom: 0.45rem;
+  filter: drop-shadow(0 0 8px rgba(34, 211, 238, 0.5));
+}
+
+.md-typeset .fh-card p {
+  font-size: 0.82rem;
+  margin: 0;
+  opacity: 0.85;
+}
+
+/* ── Terminal-style code window ── */
+.md-typeset .fh-terminal {
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(34, 211, 238, 0.25);
+  box-shadow: 0 10px 34px rgba(2, 8, 23, 0.4);
+  margin: 1rem 0;
+}
+
+.md-typeset .fh-terminal-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.9rem;
+  background: #0d1526;
+  border-bottom: 1px solid rgba(34, 211, 238, 0.18);
+}
+
+.md-typeset .fh-terminal-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.md-typeset .fh-terminal-dot:nth-child(1) { background: #ff5f57; }
+.md-typeset .fh-terminal-dot:nth-child(2) { background: #febc2e; }
+.md-typeset .fh-terminal-dot:nth-child(3) { background: #28c840; }
+
+.md-typeset .fh-terminal-title {
+  margin-left: 8px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.68rem;
+  color: #7e93b2;
+  letter-spacing: 0.08em;
+}
+
+.md-typeset .fh-terminal pre {
+  margin: 0;
+  border-radius: 0;
+}
+
+/* ── Glow links on homepage ── */
+.md-typeset .fh-link-card {
+  display: inline-block;
+  margin: 0.2rem 0.4rem 0.2rem 0;
+  padding: 0.45rem 1rem;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  font-size: 0.82rem;
+  transition: all 0.18s ease;
+}
+
+.md-typeset .fh-link-card:hover {
+  border-color: rgba(34, 211, 238, 0.6);
+  box-shadow: var(--fh-glow);
+  transform: translateY(-1px);
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  .md-typeset .fh-hero::after,
+  .md-typeset .fh-hero-title .fh-glow,
+  .md-typeset .fh-cursor {
+    animation: none;
+  }
+}
+
+/* ── Mobile hero ── */
+@media screen and (max-width: 44em) {
+  .md-typeset .fh-hero {
+    padding: 2.2rem 1.1rem 1.8rem;
+  }
+  .md-typeset .fh-hero-title {
+    font-size: 2.1rem;
+  }
+  .md-typeset .fh-stats {
+    gap: 1.4rem;
+  }
+}
