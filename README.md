@@ -21,7 +21,7 @@
 - **Tracking**: IoU-based multi-face tracker with majority-vote identity smoothing.
 - **Camera**: cross-platform capture thread (Windows DShow, macOS AVFoundation, Linux V4L2).
 - **Protocol**: `DetectorProtocol` lets you plug in your own detector (YOLO, MediaPipe, etc.).
-- **Photo classification**: group photo collections by the faces in them — gallery matching or fully automatic clustering.
+- **Photo classification**: group photo collections by the faces in them — gallery matching or fully automatic clustering, with per-person folder export.
 
 ## Installation
 
@@ -114,6 +114,19 @@ print(result.no_face_photos)   # photos with no usable face
 print(result.summary())        # {"person_001": 2, ...}
 ```
 
+Export the groups into per-person folders (multi-person photos are exported
+into every folder they belong to):
+
+```python
+from face_hub import classify_photos, export_to_folders
+
+result = classify_photos(photos)
+export = export_to_folders(result, "sorted/", mode="copy")
+
+print(export.total_files)   # files written
+print(export.skipped)       # photo ids that were not files (e.g. array inputs)
+```
+
 With a registered gallery (known people filed under their names):
 
 ```python
@@ -171,7 +184,7 @@ The FaceHub **code** is released under the [MIT License](LICENSE).
 - **追踪**：基于 IoU 的多目标追踪 + 多数投票身份平滑。
 - **摄像头**：跨平台采集线程（Windows DShow、macOS AVFoundation、Linux V4L2）。
 - **协议**：`DetectorProtocol` 允许接入自定义检测器（YOLO、MediaPipe 等）。
-- **照片分类**：按人脸对照片集自动分组 —— 支持注册人脸库匹配或全自动聚类。
+- **照片分类**：按人脸对照片集自动分组 —— 支持注册人脸库匹配或全自动聚类，并可导出为按人分类的文件夹。
 
 ## 安装
 
@@ -242,6 +255,19 @@ for label, group in result.groups.items():
 
 print(result.no_face_photos)   # 未检测到可用人脸的照片
 print(result.summary())        # {"person_001": 2, ...}
+```
+
+把分组结果导出为按人分类的文件夹（多人合影会导出到每一个相关人物的
+文件夹中）：
+
+```python
+from face_hub import classify_photos, export_to_folders
+
+result = classify_photos(photos)
+export = export_to_folders(result, "sorted/", mode="copy")
+
+print(export.total_files)   # 已写入的文件数
+print(export.skipped)       # 非文件输入（如数组）被跳过的照片 id
 ```
 
 使用注册人脸库（认识的人归入姓名分组）：
