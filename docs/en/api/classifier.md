@@ -9,11 +9,11 @@ by person. Two modes:
   person are filed under that person's name; faces that don't match anyone
   fall through to clustering, so strangers are still grouped together.
 
-!!! note "What the classifier does NOT do"
-    `PhotoClassifier` only computes groups **in memory** — it never moves,
+!!! note "Classification vs. export"
+    `classify_photos()` only computes groups **in memory** — it never moves,
     copies, or renames files. A photo containing several people appears in
-    **several groups** (see [Exporting to folders](#exporting-to-folders)
-    for turning the result into per-person directories).
+    **several groups**. To turn the result into per-person directories, use
+    the built-in [`export_to_folders()`](#export_to_folders).
 
 ---
 
@@ -129,33 +129,48 @@ for face in result.faces:
     print(face.photo_id, face.label, face.bbox.to_tuple(), f"{face.similarity:.2f}")
 ```
 
-## Exporting to Folders
+## export_to_folders()
 
-The classifier returns groups in memory only. To materialize per-person
-folders, copy the files yourself — note that a multi-person photo is copied
-into **every** folder it belongs to:
+Materialize a classification result into per-person folders — one folder per
+group label under `output_dir`. A multi-person photo is exported into
+**every** folder it belongs to (in `move` mode it is moved once, then copied
+from its first destination into the remaining folders).
 
 ```python
-import shutil
-from pathlib import Path
-from face_hub import classify_photos
+from face_hub import classify_photos, export_to_folders
 
-photos = list(Path("incoming").glob("*.jpg"))
 result = classify_photos(photos)
+export = export_to_folders(result, "sorted/", mode="copy")
 
-out_root = Path("sorted")
-for label, group in result.groups.items():
-    folder = out_root / label
-    folder.mkdir(parents=True, exist_ok=True)
-    for photo_id in group.photo_ids:
-        shutil.copy2(photo_id, folder / Path(photo_id).name)
+# sorted/
+# ├── person_001/  a.jpg, c.jpg
+# ├── person_002/  b.jpg
+# └── _no_face/    d.jpg
 
-# Photos with no usable face
-no_face = out_root / "_no_face"
-no_face.mkdir(exist_ok=True)
-for photo_id in result.no_face_photos:
-    shutil.copy2(photo_id, no_face / Path(photo_id).name)
+print(export.total_files)  # 4
+print(export.skipped)      # photo ids that were not files (e.g. array inputs)
+print(export.errors)       # photo id → error message
 ```
+
+| Argument | Type | Default | Description |
+|----------|------|---------|-------------|
+| `result` | `PhotoClassificationResult` | *(required)* | Result from `classify_photos()` |
+| `output_dir` | `str \| Path` | *(required)* | Root folder to create person folders in |
+| `mode` | `str` | `"copy"` | `"copy"` keeps originals, `"move"` removes them |
+| `include_no_face` | `bool` | `True` | Also export `no_face_photos` into a folder |
+| `no_face_label` | `str` | `"_no_face"` | Folder name for photos without a usable face |
+| `on_conflict` | `str` | `"rename"` | Existing-file policy: `"rename"` (append `_1`, `_2`, …), `"skip"`, or `"overwrite"` |
+
+**Returns:** `ExportResult` — `exported` (label → written paths), `skipped`,
+`errors`, `total_files`, `labels`. See [Types](types.md#exportresult).
+
+**Raises:** `ValueError` on invalid `mode` / `on_conflict`; `FaceHubError`
+if `output_dir` cannot be created.
+
+!!! tip
+    Folder names are sanitized for cross-platform safety (`<>:"/\|?*` and
+    control characters become `_`). Only photo ids pointing to existing files
+    are exported — array inputs land in `skipped`.
 
 ## Progress Reporting
 
