@@ -6,7 +6,7 @@ All public API return types are dataclasses defined here.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -126,3 +126,81 @@ class PipelineResult:
     @property
     def total_faces(self) -> int:
         return len(self.tracked_faces)
+
+
+# ── Photo classification results ────────────────────────────────
+
+@dataclass
+class PhotoFace:
+    """
+    One face found in one photo.
+
+    label is either a registered person's name, an anonymous cluster
+    label ("person_001", ...), or UNKNOWN_SENTINEL if the face could
+    not be assigned.
+    """
+    photo_id: str
+    bbox: BBox
+    det_confidence: float             # detection confidence 0.0~1.0
+    label: str                        # person name / cluster label / UNKNOWN_SENTINEL
+    similarity: float                 # cosine similarity to the matched person / cluster centroid
+
+
+@dataclass
+class PhotoGroup:
+    """
+    A group of photos that contain the same person.
+
+    photo_ids are unique and kept in insertion order; a photo containing
+    several different people appears in several groups.
+    """
+    label: str                        # person name or cluster label
+    photo_ids: List[str] = field(default_factory=list)
+    face_count: int = 0
+
+    @property
+    def photo_count(self) -> int:
+        return len(self.photo_ids)
+
+
+@dataclass
+class PhotoClassificationResult:
+    """
+    Returned by PhotoClassifier.classify_photos().
+    """
+    groups: Dict[str, PhotoGroup] = field(default_factory=dict)
+    faces: List[PhotoFace] = field(default_factory=list)
+    no_face_photos: List[str] = field(default_factory=list)      # photos with no usable face
+    unreadable_photos: List[str] = field(default_factory=list)   # photos that failed to decode
+    total_photos: int = 0
+
+    @property
+    def labels(self) -> List[str]:
+        """All group labels in first-appearance order."""
+        return list(self.groups.keys())
+
+    @property
+    def total_faces(self) -> int:
+        return len(self.faces)
+
+    def photos_of(self, label: str) -> List[str]:
+        """Photo ids assigned to a person / cluster (empty if unknown label)."""
+        group = self.groups.get(label)
+        return list(group.photo_ids) if group else []
+
+    def labels_of(self, photo_id: str) -> List[str]:
+        """All person / cluster labels found in one photo."""
+        seen: List[str] = []
+        for face in self.faces:
+            if face.photo_id == photo_id and face.label not in seen:
+                seen.append(face.label)
+        return seen
+
+    def summary(self) -> Dict[str, int]:
+        """Label → photo count, plus bookkeeping entries."""
+        out = {label: g.photo_count for label, g in self.groups.items()}
+        if self.no_face_photos:
+            out["__no_face__"] = len(self.no_face_photos)
+        if self.unreadable_photos:
+            out["__unreadable__"] = len(self.unreadable_photos)
+        return out
