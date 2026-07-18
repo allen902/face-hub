@@ -71,6 +71,7 @@ plugins:
             Tracker: 追踪器
             Database: 数据库
             Camera: 摄像头
+            Photo Classifier: 照片分类器
             Types: 类型
             Config: 配置
             Exceptions: 异常
@@ -137,6 +138,7 @@ nav:
       - Tracker: api/tracker.md
       - Database: api/database.md
       - Camera: api/camera.md
+      - Photo Classifier: api/classifier.md
       - Config: api/config.md
       - Types: api/types.md
       - Exceptions: api/exceptions.md
