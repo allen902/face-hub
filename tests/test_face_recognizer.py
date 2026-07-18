@@ -62,3 +62,46 @@ class TestFaceRecognizer:
         r = FaceRecognizer()
         name, conf = r.recognize(None)
         assert name == UNKNOWN_SENTINEL
+
+
+class TestRecognizeBatch:
+    def test_batch_matches_single(self):
+        r = FaceRecognizer(tolerance=0.40)
+        gallery = [make_encoding(i) for i in range(5)]
+        names = [f"p{i}" for i in range(5)]
+        r.update_cache(gallery, names, db_version=1)
+
+        queries = [gallery[2], gallery[4], make_encoding(99)]
+        batch = r.recognize_batch(queries)
+        assert len(batch) == 3
+        for q, (bname, bconf) in zip(queries, batch):
+            sname, sconf = r.recognize(q)
+            assert bname == sname
+            assert abs(bconf - sconf) < 1e-6
+
+    def test_batch_handles_none_entries(self):
+        r = FaceRecognizer(tolerance=0.40)
+        enc = make_encoding(42)
+        r.update_cache([enc], ["Alice"], db_version=1)
+        results = r.recognize_batch([None, enc, None])
+        assert results[0] == (UNKNOWN_SENTINEL, 0.0)
+        assert results[1][0] == "Alice"
+        assert results[2] == (UNKNOWN_SENTINEL, 0.0)
+
+    def test_batch_empty_cache(self):
+        r = FaceRecognizer()
+        results = r.recognize_batch([make_encoding(1), None])
+        assert results == [(UNKNOWN_SENTINEL, 0.0)] * 2
+
+    def test_batch_with_explicit_gallery(self):
+        r = FaceRecognizer(tolerance=0.40)
+        enc = make_encoding(7)
+        results = r.recognize_batch([enc], known_encodings=[enc], known_names=["Test"])
+        assert results[0][0] == "Test"
+
+    def test_batch_dimension_mismatch(self):
+        r = FaceRecognizer()
+        r.update_cache([make_encoding(1)], ["Alice"], db_version=1)
+        bad = np.zeros(256, dtype=np.float32)
+        results = r.recognize_batch([bad])
+        assert results == [(UNKNOWN_SENTINEL, 0.0)]

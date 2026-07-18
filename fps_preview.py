@@ -106,7 +106,10 @@ def run_preview(args: argparse.Namespace) -> None:
         encoding_path=args.encoding_path,
     )
 
-    pipeline = FaceHubPipeline(camera, detector, recognizer, tracker, db)
+    pipeline = FaceHubPipeline(
+        camera, detector, recognizer, tracker, db,
+        det_interval=args.det_interval,
+    )
     pipeline.start()
 
     # 体感平滑：最近 30 帧的 UI 刷新间隔
@@ -180,9 +183,12 @@ def main() -> None:
     parser.add_argument("--tolerance", type=float, default=0.45, help="recognition tolerance")
     parser.add_argument("--track_smooth", type=int, default=5, help="tracker smooth frames")
     parser.add_argument("--min_face_size", type=int, default=80, help="min face size")
-    parser.add_argument("--quality_filter", action="store_true", default=True, help="enable quality filter")
+    parser.add_argument("--quality_filter", action=argparse.BooleanOptionalAction,
+                        default=True, help="enable/disable the face quality filter")
+    parser.add_argument("--det_interval", type=int, default=1,
+                        help="run detection every N frames (1=every frame, 2-3=faster)")
     parser.add_argument("--db_path", type=str, default="face_db.json", help="face database json")
-    parser.add_argument("--encoding_path", type=str, default="encodings.pkl", help="encodings pickle")
+    parser.add_argument("--encoding_path", type=str, default="encodings.npy", help="encodings .npy file")
     args = parser.parse_args()
 
     run_preview(args)
