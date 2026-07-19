@@ -44,21 +44,39 @@ CLUSTER_LABEL_PREFIX = "person_"
 
 class _EmbeddingClusterer:
     """
-    Greedy centroid clustering over L2-normalized embeddings.
+    Greedy centroid clustering over L2-normalized embeddings with a
+    post-assignment merge + reassign pass to fix order-dependent splits.
 
-    Each new embedding joins the cluster whose centroid has the highest
-    cosine similarity if that similarity >= threshold; otherwise it starts
-    a new cluster. Deterministic in input order, no extra dependencies.
+    Phase 1 (online): Each new embedding joins the cluster whose centroid
+    has the highest cosine similarity if that similarity >= threshold;
+    otherwise it starts a new cluster.  Every embedding is stored for
+    later reassignment.
+
+    Phase 2 (merge_pass): After all assignments, centroids that are
+    within threshold are merged via Union-Find, then every stored
+    embedding is reassigned to the closest merged centroid.  This
+    corrects both centroid drift and cross-contamination that the
+    greedy pass cannot avoid.
     """
 
     def __init__(self, threshold: float):
         self.threshold = threshold
         self._centroids: List[np.ndarray] = []   # L2-normalized means
         self._counts: List[int] = []             # members per cluster
+        self._store: List[Tuple[np.ndarray, str, int]] = []  # (emb, photo_id, face_idx)
 
-    def assign(self, embedding: np.ndarray) -> Tuple[int, float]:
+    @property
+    def cluster_count(self) -> int:
+        return len(self._centroids)
+
+    def assign(
+        self, embedding: np.ndarray, photo_id: str = "", face_idx: int = 0,
+    ) -> Tuple[int, float]:
         """
         Assign an embedding to a cluster.
+
+        The embedding is stored internally so that merge_pass can
+        reassign it later.
 
         Returns:
             (cluster_index, similarity_to_centroid). For a brand-new
@@ -68,6 +86,8 @@ class _EmbeddingClusterer:
         norm = np.linalg.norm(emb)
         if norm > 0:
             emb = emb / norm
+
+        self._store.append((emb, photo_id, face_idx))
 
         best_idx, best_sim = -1, -1.0
         for i, centroid in enumerate(self._centroids):
@@ -90,6 +110,99 @@ class _EmbeddingClusterer:
         self._counts.append(1)
         return len(self._centroids) - 1, 1.0
 
+    def merge_pass(self) -> Tuple[Dict[int, int], List[Tuple[str, int, int]]]:
+        """
+        Merge nearby centroids, then reassign every stored embedding.
+
+        Returns:
+            (old_to_new, reassignments) where
+            - old_to_new: cluster-index remapping (for gallery-label safety)
+            - reassignments: list of (photo_id, face_idx, new_cluster_idx)
+              for every stored embedding
+        """
+        k = len(self._centroids)
+        if k <= 1:
+            mapping = {i: i for i in range(k)}
+            reassignments = [
+                (pid, fi, 0 if k == 1 else 0)
+                for _, pid, fi in self._store
+            ]
+            return mapping, reassignments
+
+        # ── 1. Merge close centroids via Union-Find ────────────────
+        parent = list(range(k))
+
+        def find(x: int) -> int:
+            while parent[x] != x:
+                parent[x] = parent[parent[x]]
+                x = parent[x]
+            return x
+
+        def union(a: int, b: int) -> None:
+            ra, rb = find(a), find(b)
+            if ra != rb:
+                parent[rb] = ra
+
+        merges: List[Tuple[float, int, int]] = []
+        for i in range(k):
+            for j in range(i + 1, k):
+                sim = float(self._centroids[i] @ self._centroids[j])
+                if sim >= self.threshold:
+                    merges.append((sim, i, j))
+
+        merges.sort(reverse=True)
+        for _, i, j in merges:
+            if find(i) != find(j):
+                union(i, j)
+
+        # Compute merged centroids
+        comp_members: Dict[int, List[int]] = {}
+        for i in range(k):
+            root = find(i)
+            comp_members.setdefault(root, []).append(i)
+
+        old_to_new: Dict[int, int] = {}
+        new_centroids: List[np.ndarray] = []
+        new_counts: List[int] = []
+
+        for new_idx, (root, members) in enumerate(comp_members.items()):
+            total_count = sum(self._counts[m] for m in members)
+            weighted = sum(
+                self._centroids[m] * self._counts[m] for m in members
+            ) / total_count
+            w_norm = np.linalg.norm(weighted)
+            if w_norm > 0:
+                weighted = weighted / w_norm
+            new_centroids.append(weighted.astype(np.float32))
+            new_counts.append(total_count)
+            for m in members:
+                old_to_new[m] = new_idx
+
+        self._centroids = new_centroids
+        self._counts = new_counts
+
+        # ── 2. Reassign every stored embedding to closest centroid ─
+        reassignments: List[Tuple[str, int, int]] = []
+        new_counts_arr = [0] * len(new_centroids)
+
+        for emb, pid, fi in self._store:
+            best_idx, best_sim = -1, -1.0
+            for ci, centroid in enumerate(self._centroids):
+                sim = float(emb @ centroid)
+                if sim > best_sim:
+                    best_idx, best_sim = ci, sim
+
+            if best_idx >= 0 and best_sim >= self.threshold:
+                reassignments.append((pid, fi, best_idx))
+                new_counts_arr[best_idx] += 1
+            else:
+                # Keep original assignment as fallback
+                reassignments.append((pid, fi, -1))
+                new_counts_arr[0] += 1  # won't matter; -1 is handled by caller
+
+        self._counts = new_counts_arr
+        return old_to_new, reassignments
+
 
 class PhotoClassifier:
     """
@@ -103,12 +216,16 @@ class PhotoClassifier:
             print(label, group.photo_ids)
     """
 
+    GROUP_LABEL = "group_photo"
+
     def __init__(
         self,
         detector: DetectorProtocol,
         recognizer: Optional[FaceRecognizer] = None,
         cluster_threshold: float = 0.45,
         skip_low_quality: bool = True,
+        group_threshold: int = 0,
+        blur_threshold: Optional[float] = None,
     ):
         """
         Args:
@@ -120,6 +237,16 @@ class PhotoClassifier:
                                faces that don't match the gallery.
                                0.40 strict, 0.45 recommended, 0.50 loose.
             skip_low_quality: Ignore detections whose quality_pass is False.
+            group_threshold: When a photo contains >= this many faces, all
+                             faces are labeled as "group_photo" instead of
+                             being individually classified.
+                             0 (default) disables this feature.
+            blur_threshold: If given, overrides the detector's blur_threshold
+                            (Laplacian variance). Higher = stricter:
+                            50  default, tolerates soft skin / mild blur
+                            100 strict, rejects soft-focus portraits
+                            200 very strict, only razor-sharp faces pass.
+                            Only effective when detector is a FaceDetector.
         """
         if not isinstance(cluster_threshold, (int, float)) or not (0 < cluster_threshold <= 1):
             raise ValueError(
@@ -129,10 +256,16 @@ class PhotoClassifier:
         self.recognizer = recognizer
         self.cluster_threshold = float(cluster_threshold)
         self.skip_low_quality = skip_low_quality
+        self.group_threshold = int(group_threshold)
+        # Override detector's blur_threshold when explicitly provided and
+        # the detector supports it (FaceDetector instances have the attr).
+        if blur_threshold is not None and hasattr(detector, "blur_threshold"):
+            detector.blur_threshold = float(blur_threshold)
         logger.info(
-            "PhotoClassifier initialized (mode=%s, cluster_threshold=%.2f)",
+            "PhotoClassifier initialized (mode=%s, cluster_threshold=%.2f, group_threshold=%d)",
             "gallery" if recognizer is not None else "discovery",
             self.cluster_threshold,
+            self.group_threshold,
         )
 
     # ── Public API ───────────────────────────────────────────────
@@ -187,11 +320,28 @@ class PhotoClassifier:
                 self._report_progress(progress_callback, idx, total, photo_id)
                 continue
 
-            for det in usable:
-                label, similarity = self._label_face(det.embedding, clusterer)
+            # Group photo: faces >= group_threshold → label all as "group_photo"
+            if self.group_threshold > 0 and len(usable) >= self.group_threshold:
+                for det in usable:
+                    self._record(result, photo_id, det, self.GROUP_LABEL, 1.0)
+                self._report_progress(progress_callback, idx, total, photo_id)
+                continue
+
+            for face_idx, det in enumerate(usable):
+                label, similarity = self._label_face(
+                    det.embedding, clusterer, photo_id, face_idx,
+                )
                 self._record(result, photo_id, det, label, similarity)
 
             self._report_progress(progress_callback, idx, total, photo_id)
+
+        # ── Merge pass: fuse clusters + reassign embeddings ────────
+        if clusterer.cluster_count > 1:
+            _old_to_new, reassignments = clusterer.merge_pass()
+            self._apply_reassignments(result, reassignments, clusterer)
+
+        # ── Build groups from the final face list (single source of truth)
+        self._build_groups(result)
 
         logger.info(
             "Classified %d photos → %d groups, %d no-face, %d unreadable",
@@ -203,15 +353,64 @@ class PhotoClassifier:
     # ── Internals ────────────────────────────────────────────────
 
     def _label_face(
-        self, embedding: np.ndarray, clusterer: _EmbeddingClusterer
+        self, embedding: np.ndarray, clusterer: _EmbeddingClusterer,
+        photo_id: str = "", face_idx: int = 0,
     ) -> Tuple[str, float]:
         """Match against the gallery first, fall through to clustering."""
         if self.recognizer is not None:
             name, confidence = self.recognizer.recognize(embedding)
             if name != UNKNOWN_SENTINEL:
                 return name, confidence
-        cluster_idx, similarity = clusterer.assign(embedding)
+        cluster_idx, similarity = clusterer.assign(embedding, photo_id, face_idx)
         return f"{CLUSTER_LABEL_PREFIX}{cluster_idx + 1:03d}", similarity
+
+    @staticmethod
+    def _apply_reassignments(
+        result: PhotoClassificationResult,
+        reassignments: List[Tuple[str, int, int]],
+        clusterer: _EmbeddingClusterer,
+    ) -> None:
+        """Rewrite cluster labels based on merge-pass reassignments.
+
+        Gallery labels (non-cluster names) are left untouched — only
+        faces whose label starts with CLUSTER_LABEL_PREFIX are updated.
+        Does NOT rebuild result.groups — that is done by _build_groups.
+        """
+        lookup: Dict[Tuple[str, int], int] = {}
+        for pid, fi, new_idx in reassignments:
+            if new_idx >= 0:
+                lookup[(pid, fi)] = new_idx
+
+        # Walk faces in the same order they were recorded (one per usable
+        # detection, cluster faces only).  Gallery faces keep their label.
+        cluster_face_counter: Dict[str, int] = {}
+        for face in result.faces:
+            if not face.label.startswith(CLUSTER_LABEL_PREFIX):
+                continue
+            fi = cluster_face_counter.get(face.photo_id, 0)
+            cluster_face_counter[face.photo_id] = fi + 1
+
+            new_idx = lookup.get((face.photo_id, fi))
+            if new_idx is not None:
+                face.label = f"{CLUSTER_LABEL_PREFIX}{new_idx + 1:03d}"
+
+    @staticmethod
+    def _build_groups(result: PhotoClassificationResult) -> None:
+        """Rebuild result.groups from the (final) result.faces list.
+
+        This is the single source of truth for groups — called once at
+        the end of classify_photos, after all label mutations are done.
+        """
+        groups: Dict[str, PhotoGroup] = {}
+        for face in result.faces:
+            group = groups.get(face.label)
+            if group is None:
+                group = PhotoGroup(label=face.label)
+                groups[face.label] = group
+            if face.photo_id not in group.photo_ids:
+                group.photo_ids.append(face.photo_id)
+            group.face_count += 1
+        result.groups = groups
 
     @staticmethod
     def _record(
@@ -228,13 +427,6 @@ class PhotoClassifier:
             label=label,
             similarity=float(similarity),
         ))
-        group = result.groups.get(label)
-        if group is None:
-            group = PhotoGroup(label=label)
-            result.groups[label] = group
-        if photo_id not in group.photo_ids:
-            group.photo_ids.append(photo_id)
-        group.face_count += 1
 
     @staticmethod
     def _load_frame(image: ImageInput) -> Optional[np.ndarray]:
@@ -283,6 +475,9 @@ def classify_photos(
     detector: Optional[DetectorProtocol] = None,
     recognizer: Optional[FaceRecognizer] = None,
     cluster_threshold: float = 0.45,
+    group_threshold: int = 0,
+    skip_low_quality: bool = True,
+    blur_threshold: Optional[float] = None,
     photo_ids: Optional[Sequence[str]] = None,
     progress_callback: Optional[ProgressCallback] = None,
     **detector_kwargs,
@@ -297,6 +492,13 @@ def classify_photos(
         from face_hub import classify_photos
         result = classify_photos(["party1.jpg", "party2.jpg"], device="auto")
         print(result.summary())
+
+    Quality control:
+        # Strict mode — reject blurry / soft-focus faces:
+        result = classify_photos(images, skip_low_quality=True, blur_threshold=100)
+
+        # Lenient mode — keep all detected faces regardless of quality:
+        result = classify_photos(images, skip_low_quality=False)
     """
     if detector is None:
         from face_hub.engine.face_detector import FaceDetector
@@ -308,6 +510,9 @@ def classify_photos(
         detector,
         recognizer=recognizer,
         cluster_threshold=cluster_threshold,
+        group_threshold=group_threshold,
+        skip_low_quality=skip_low_quality,
+        blur_threshold=blur_threshold,
     )
     return classifier.classify_photos(
         images, photo_ids=photo_ids, progress_callback=progress_callback
@@ -345,6 +550,51 @@ def _resolve_conflict(target: Path, on_conflict: str) -> Optional[Path]:
     raise FaceHubError(f"Could not resolve filename conflict for {target}")
 
 
+def _annotate_image(
+    image_path: str,
+    faces: List,
+    target_label: str,
+) -> Optional[np.ndarray]:
+    """Draw bounding boxes and person labels on a copy of the image.
+
+    Only draws faces whose label matches *target_label*.
+    Returns the annotated BGR image, or None if the file cannot be read.
+    """
+    frame = cv2.imread(image_path)
+    if frame is None or frame.size == 0:
+        return None
+
+    h, w = frame.shape[:2]
+    # Scale line thickness and font size relative to image size
+    thickness = max(1, int(min(h, w) / 300) + 1)
+    font_scale = max(0.4, min(h, w) / 800)
+
+    for face in faces:
+        if face.photo_id != image_path or face.label != target_label:
+            continue
+        x1, y1, x2, y2 = face.bbox.x1, face.bbox.y1, face.bbox.x2, face.bbox.y2
+        # Green box
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), thickness)
+        # Label background + text
+        text = face.label
+        (tw, th), baseline = cv2.getTextSize(
+            text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, thickness,
+        )
+        text_y = max(y1 - 4, th + 4)
+        cv2.rectangle(
+            frame,
+            (x1, text_y - th - 4),
+            (x1 + tw + 6, text_y + baseline),
+            (0, 255, 0),
+            cv2.FILLED,
+        )
+        cv2.putText(
+            frame, text, (x1 + 3, text_y),
+            cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness,
+        )
+    return frame
+
+
 def export_to_folders(
     result: PhotoClassificationResult,
     output_dir: Union[str, Path],
@@ -352,6 +602,7 @@ def export_to_folders(
     include_no_face: bool = True,
     no_face_label: str = "_no_face",
     on_conflict: str = "rename",
+    annotate_faces: bool = False,
 ) -> ExportResult:
     """
     Export a classification result into per-person folders.
@@ -423,12 +674,23 @@ def export_to_folders(
             target = _resolve_conflict(folder / src.name, on_conflict)
             if target is None:
                 continue
-            if already_moved:
+
+            if annotate_faces and src.is_file():
+                # Annotate: draw boxes on a copy of the image and write directly
+                annotated = _annotate_image(photo_id, result.faces, label)
+                if annotated is not None:
+                    cv2.imwrite(str(target), annotated)
+                    written = str(target)
+                else:
+                    # Fall back to plain copy if annotation fails
+                    written = shutil.copy2(str(src), str(target))
+            elif already_moved:
                 written = shutil.copy2(moved_sources[photo_id], str(target))
             else:
                 written = transfer(str(src), str(target))
                 if mode == "move":
                     moved_sources[photo_id] = str(written)
+
             export.exported.setdefault(label, []).append(str(written))
         except (OSError, shutil.Error) as e:
             export.errors[photo_id] = str(e)

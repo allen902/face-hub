@@ -25,19 +25,22 @@ class FaceDetector:
     """Face detector based on insightface RetinaFace."""
 
     def __init__(self, confidence=0.50, device="auto", det_size=640,
-                 quality_filter=True, min_face_size=80):
+                 quality_filter=True, min_face_size=100, blur_threshold=50.0):
         if not isinstance(confidence, (int, float)) or not (0 < confidence <= 1):
             raise ValueError(f"confidence must be in (0, 1], got {confidence}")
         if not isinstance(det_size, int) or det_size < 160:
             raise ValueError(f"det_size must be an int >= 160, got {det_size}")
         if not isinstance(min_face_size, int) or min_face_size < 0:
             raise ValueError(f"min_face_size must be a non-negative int, got {min_face_size}")
+        if not isinstance(blur_threshold, (int, float)) or blur_threshold < 0:
+            raise ValueError(f"blur_threshold must be >= 0, got {blur_threshold}")
 
         self.confidence = confidence
         self.device = device  # kept as-is; resolved to actual device in _load_model
         self.det_size = det_size
         self.quality_filter = quality_filter
         self.min_face_size = min_face_size
+        self.blur_threshold = float(blur_threshold)
         self.app = None
         self._lock = threading.Lock()
         self._inference_error_count = 0
@@ -200,8 +203,7 @@ class FaceDetector:
 
     # ── Face quality assessment ───────────────────────────────────
 
-    @staticmethod
-    def _face_quality(face_roi):
+    def _face_quality(self, face_roi):
         """
         Assess the quality of a face region.
 
@@ -214,7 +216,7 @@ class FaceDetector:
 
         gray = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
         blur_score = cv2.Laplacian(gray, cv2.CV_64F).var()
-        is_good = blur_score >= 50.0
+        is_good = blur_score >= self.blur_threshold
         return is_good, blur_score
 
     @staticmethod

@@ -89,6 +89,18 @@ class FaceDatabase:
             )
         return resolved
 
+    def _resolve_image_path(self, image_path: str) -> Path:
+        """Resolve image_path to absolute without safe-directory check.
+
+        Used for storing reference photos that may live outside the database
+        directory (e.g. the user's personal photo folder).  The stricter
+        _validate_image_path is still used for delete operations.
+        """
+        path_obj = Path(image_path)
+        if path_obj.is_absolute():
+            return path_obj.resolve()
+        return (self._safe_dir / path_obj).resolve()
+
     def add_person(self, name: str, image_path: str, encoding: np.ndarray):
         """Add a person record.
 
@@ -109,8 +121,11 @@ class FaceDatabase:
                 f"got {getattr(encoding, 'shape', type(encoding))}"
             )
 
-        # Validate path *before* storing — prevents path-traversal in DB records.
-        safe_path = self._validate_image_path(image_path)
+        # Resolve to absolute path.  Photos may live outside the database
+        # directory (e.g. user's personal photo folder), so we only resolve
+        # without the safe-directory check.  The stricter _validate_image_path
+        # is still used for delete operations to prevent path-traversal.
+        safe_path = self._resolve_image_path(image_path)
 
         with self._lock:
             for person in self.persons:

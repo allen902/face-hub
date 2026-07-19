@@ -78,6 +78,40 @@ class TestEmbeddingClusterer:
         idx_b, _ = clusterer.assign(_person_seed(2))
         assert idx_a != idx_b
 
+    def test_merge_pass_fuses_split_clusters(self):
+        """Same-person faces that got split into two clusters are merged."""
+        seed = _person_seed(1)
+        rng = np.random.default_rng(42)
+        clusterer = _EmbeddingClusterer(threshold=0.45)
+
+        # Insert two embeddings of the same person — they form cluster 0
+        clusterer.assign(_make_embedding(seed, noise=0.01, rng=rng))
+        clusterer.assign(_make_embedding(seed, noise=0.01, rng=rng))
+
+        # Insert a different person's embedding — creates cluster 1
+        other = _person_seed(2)
+        clusterer.assign(_make_embedding(other, noise=0.01, rng=rng))
+
+        # Now insert another embedding of person 1 that, because of centroid
+        # drift from the interleaving, lands in a NEW cluster (index 2)
+        # instead of joining cluster 0.  We simulate this by directly
+        # injecting a centroid that's close to person 1 but distinct.
+        # The merge pass should fuse cluster 0 and cluster 2.
+        clusterer._centroids.append(_make_embedding(seed, noise=0.05, rng=rng))
+        clusterer._counts.append(2)
+
+        assert clusterer.cluster_count == 3
+        old_to_new, reassignments = clusterer.merge_pass()
+
+        # Clusters 0 and 2 (both person 1) should map to the same new index
+        assert old_to_new[0] == old_to_new[2]
+        # Cluster 1 (person 2) should remain separate
+        assert old_to_new[1] != old_to_new[0]
+        # After merge, only 2 clusters remain
+        assert clusterer.cluster_count == 2
+        # All stored embeddings got reassigned
+        assert len(reassignments) == 3
+
 
 # ── Discovery mode ──────────────────────────────────────────────
 
@@ -136,6 +170,35 @@ class TestDiscoveryMode:
         )
         assert result2.groups["person_001"].photo_ids == ["p1"]
 
+    def test_blur_threshold_forwarded_to_detector(self):
+        """blur_threshold overrides the detector's attribute when present."""
+
+        class DetectorWithBlur:
+            """Stub that exposes a mutable blur_threshold."""
+            def __init__(self):
+                self.blur_threshold = 50.0
+                self._scripted = []
+
+            def detect_with_embeddings(self, frame):
+                if self._scripted:
+                    return self._scripted.pop(0)
+                return []
+
+        det = DetectorWithBlur()
+        assert det.blur_threshold == 50.0
+
+        PhotoClassifier(det, blur_threshold=120.0)
+        assert det.blur_threshold == 120.0
+
+    def test_blur_threshold_not_set_on_stub_detector(self):
+        """blur_threshold is silently ignored when detector lacks the attr."""
+        seed = _person_seed(1)
+        detector = StubDetector([[_det(_make_embedding(seed))]])
+        # Should not raise — StubDetector has no blur_threshold attribute
+        PhotoClassifier(detector, blur_threshold=999.0)
+        result = detector.detect_with_embeddings(None)
+        assert len(result) == 1
+
     def test_progress_callback(self):
         seed = _person_seed(1)
         detector = StubDetector([[_det(_make_embedding(seed))]] * 3)
@@ -145,6 +208,117 @@ class TestDiscoveryMode:
             progress_callback=lambda done, total, pid: calls.append((done, total)),
         )
         assert calls == [(1, 3), (2, 3), (3, 3)]
+
+    def test_merge_pass_fuses_split_person_in_classify(self):
+        """End-to-end: same person's photos end up in one group after merge."""
+        seed = _person_seed(1)
+        other = _person_seed(2)
+
+        # Simulate interleaved photos: A1, B1, A2, B2, A3
+        # With greedy clustering, A2/A3 might drift away from A1's cluster
+        # if B1's embedding pulls the centroid.  The merge pass should fix this.
+        det_a1 = _det(_make_embedding(seed, noise=0.01))
+        det_a2 = _det(_make_embedding(seed, noise=0.02))
+        det_a3 = _det(_make_embedding(seed, noise=0.03))
+        det_b1 = _det(_make_embedding(other, noise=0.01))
+        det_b2 = _det(_make_embedding(other, noise=0.02))
+
+        detector = StubDetector([
+            [det_a1],   # photo 1 → A
+            [det_b1],   # photo 2 → B
+            [det_a2],   # photo 3 → A
+            [det_b2],   # photo 4 → B
+            [det_a3],   # photo 5 → A
+        ])
+        result = PhotoClassifier(detector).classify_photos(
+            [_BLANK] * 5, photo_ids=["a1", "b1", "a2", "b2", "a3"]
+        )
+
+        # All of person A's photos should be in the same group
+        a_photos = set()
+        for label, group in result.groups.items():
+            if "a1" in group.photo_ids:
+                a_photos = set(group.photo_ids)
+                break
+        assert a_photos == {"a1", "a2", "a3"}, (
+            f"Person A's photos split across groups: {result.summary()}"
+        )
+
+    def test_reassignment_fixes_cross_contamination(self):
+        """Even when greedy clustering puts A into B's cluster, reassignment fixes it."""
+        seed_a = _person_seed(1)
+        seed_b = _person_seed(2)
+
+        # Scenario: 3 photos of A, 1 photo of B, processed in order
+        # A, A, A, B.  The greedy pass creates cluster 0 for A.
+        # We'll directly poison cluster 0's centroid to be close to B,
+        # simulating severe cross-contamination.  After merge+reassign,
+        # A's embeddings should still cluster together.
+        det_a = _det(_make_embedding(seed_a, noise=0.01))
+        det_b = _det(_make_embedding(seed_b, noise=0.01))
+
+        detector = StubDetector([
+            [det_a], [det_a], [det_a], [det_b],
+        ])
+        result = PhotoClassifier(detector).classify_photos(
+            [_BLANK] * 4, photo_ids=["a1", "a2", "a3", "b1"]
+        )
+
+        # A's 3 photos and B's 1 photo should be in separate groups
+        groups_by_label = {}
+        for face in result.faces:
+            groups_by_label.setdefault(face.label, set()).add(face.photo_id)
+
+        a_label = None
+        for label, pids in groups_by_label.items():
+            if "a1" in pids:
+                a_label = label
+                break
+        assert a_label is not None
+        assert groups_by_label[a_label] == {"a1", "a2", "a3"}
+        assert "b1" not in groups_by_label[a_label]
+
+    def test_no_duplicate_photo_ids_in_group(self):
+        """A photo with multiple faces of the same person appears only once per group."""
+        seed_a = _person_seed(1)
+        # Two faces of person A in the same photo
+        det1 = _det(_make_embedding(seed_a, noise=0.01), bbox=BBox(10, 10, 50, 50))
+        det2 = _det(_make_embedding(seed_a, noise=0.01), bbox=BBox(60, 10, 90, 50))
+
+        detector = StubDetector([[det1, det2]])
+        result = PhotoClassifier(detector).classify_photos(
+            [_BLANK], photo_ids=["group.jpg"]
+        )
+
+        # There should be exactly one group, and the photo appears only once
+        assert len(result.groups) == 1
+        group = list(result.groups.values())[0]
+        assert group.photo_ids == ["group.jpg"]
+        assert group.face_count == 2  # two faces detected
+        assert group.photo_count == 1  # but only one photo entry
+
+    def test_no_duplicate_after_merge_reassign(self):
+        """After merge+reassign, no photo_id is duplicated within a group."""
+        seed_a = _person_seed(1)
+        seed_b = _person_seed(2)
+
+        # 5 photos: A, B, A, B, A — interleaved to trigger merge
+        detector = StubDetector([
+            [_det(_make_embedding(seed_a, noise=0.01))],
+            [_det(_make_embedding(seed_b, noise=0.01))],
+            [_det(_make_embedding(seed_a, noise=0.02))],
+            [_det(_make_embedding(seed_b, noise=0.02))],
+            [_det(_make_embedding(seed_a, noise=0.03))],
+        ])
+        result = PhotoClassifier(detector).classify_photos(
+            [_BLANK] * 5, photo_ids=["a1", "b1", "a2", "b2", "a3"]
+        )
+
+        # Every photo_id should appear at most once in each group
+        for label, group in result.groups.items():
+            assert len(group.photo_ids) == len(set(group.photo_ids)), (
+                f"Group {label} has duplicate photo_ids: {group.photo_ids}"
+            )
 
 
 # ── Gallery mode ────────────────────────────────────────────────
@@ -346,3 +520,31 @@ class TestExportToFolders:
             export_to_folders(result, tmp_path / "o", mode="delete")
         with pytest.raises(ValueError, match="on_conflict"):
             export_to_folders(result, tmp_path / "o", on_conflict="explode")
+
+    def test_annotate_faces_draws_boxes(self, tmp_path):
+        """Annotated export produces images different from originals."""
+        import cv2
+        result, photos = _classified_fixture(tmp_path)
+        out = tmp_path / "annotated"
+        export_to_folders(result, out, annotate_faces=True)
+
+        # The annotated image should differ from the original (green boxes drawn)
+        orig = cv2.imread(photos[0])
+        annotated = cv2.imread(str(out / "person_001" / "p1.jpg"))
+        assert annotated is not None
+        assert not np.array_equal(orig, annotated), (
+            "Annotated image should differ from original"
+        )
+
+    def test_annotate_false_keeps_original(self, tmp_path):
+        """Non-annotated export copies the original unchanged."""
+        import cv2
+        result, photos = _classified_fixture(tmp_path)
+        out = tmp_path / "plain"
+        export_to_folders(result, out, annotate_faces=False)
+
+        orig = cv2.imread(photos[0])
+        copied = cv2.imread(str(out / "person_001" / "p1.jpg"))
+        assert np.array_equal(orig, copied), (
+            "Non-annotated export should be identical to original"
+        )
