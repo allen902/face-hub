@@ -1,3 +1,131 @@
+# v1.4.0 更新日志
+
+> **发布日期：** 2026-07-19
+
+---
+
+## 🔒 安全加固
+
+### FaceDetector 安全强化
+
+- 构造函数新增参数校验：`confidence` ∈ (0, 1]、`det_size` ≥ 160、`min_face_size` ≥ 0、`blur_threshold` ≥ 0，非法值立即抛出 `ValueError`。
+- ONNX Runtime `SessionOptions` 加固：日志级别设为 `LOG_SEVERITY_ERROR`、禁用内存 arena、限制线程数，减少推理过程中的信息泄漏和资源争用。
+- GPU→CPU 回退机制改进：连续推理失败 `_MAX_INFERENCE_ERRORS`(3) 次后才触发 CPU 切换，避免单次瞬态 GPU 错误导致不必要的降级。
+- DirectML 1.24.x Reshape bug 自动检测：`_is_directml_reshape_bug()` 启发式识别 DirectML 兼容性问题，自动调整 `det_size=640` 或回退 CPU。
+- 模型路径校验：加载前验证路径合法性，防止路径穿越。
+- **文件：** [face_detector.py](face_hub/engine/face_detector.py)
+
+### FaceDatabase 安全强化
+
+- 路径穿越防护：`remove_person()` / `remove_persons()` / `clear()` 删除图片前校验路径必须在数据库目录内（`is_relative_to`），越界时跳过并记录警告。
+- 内存映射 `.npy` 文件校验：加载时检查 numpy magic + header，损坏文件抛出 `SerializationError` 而非静默崩溃。
+- 文件锁：`msvcrt.locking`（Windows）/ `fcntl.flock`（Linux）防止并发写入导致数据损坏。
+- 原子写入增强：`save_encodings()` 写入 `.tmp` 后原子重命名，崩溃时不会留下半写文件。
+- `get_encodings_and_names()` 返回浅拷贝，确保线程安全。
+- **文件：** [face_database.py](face_hub/engine/face_database.py)
+
+### FaceTracker 安全强化
+
+- `max_age`、`smooth_frames`、`min_hits`、`max_ids` 参数校验为非负整数，非法值立即抛出 `ValueError`。
+- 内部 `names` 列表包装为 `ProtectedList`，确保线程安全。
+- **文件：** [face_tracker.py](face_hub/engine/face_tracker.py)
+
+### Pipeline 安全强化
+
+- `process_frame()` 在 `release()` 后调用会抛出 `RuntimeError`，防止使用已释放的资源。
+- `min_face_size` / `blur_threshold` 参数正确转发至检测器。
+- **文件：** [pipeline.py](face_hub/pipeline.py)
+
+---
+
+## ✨ 新功能
+
+### 照片分类器 — PhotoClassifier
+
+- 新增 `PhotoClassifier`：按人脸对照片集合进行分组。
+- 两步流程：(1) 逐张照片检测人脸 + 提取 embedding，(2) 通过余弦相似度矩阵跨照片聚类。
+- 优先匹配 FaceHub 数据库中已知人员，剩余人脸自动聚类为 `person_001`、`person_002` 等。
+- 新增类型：`PhotoFace`、`PhotoGroup`、`PhotoClassificationResult`。
+- **文件：** [photo_classifier.py](face_hub/engine/photo_classifier.py)
+
+### 按人导出文件夹 — export_to_folders
+
+- 新增 `export_to_folders(result, dst)`：将照片按人物复制或移动到子文件夹。
+- 多人照片自动硬链接 / 复制到每个人物的文件夹，文件名冲突自动解决，特殊字符自动清理。
+- 返回 `ExportResult`，包含 `exported`（标签→文件路径）、`total_files`、`skipped`、`errors`。
+- **文件：** [photo_classifier.py](face_hub/engine/photo_classifier.py)
+
+### 人脸识别批量识别
+
+- `FaceRecognizer.recognize_batch()` 新增编码维度校验，维度不匹配时安全返回未知。
+- `None` embedding 跳过处理，避免 numpy 广播错误。
+- **文件：** [face_recognizer.py](face_hub/engine/face_recognizer.py)
+
+### 摄像头视频保存
+
+- `Camera` 新增 `save_video()` 方法，支持将最近捕获的帧保存为 `.mp4` 文件。
+- **文件：** [camera.py](face_hub/engine/camera.py)
+
+---
+
+## ⚡ 性能优化
+
+### FaceRecognizer 批量推理
+
+- `recognize_batch()` 单次矩阵乘法完成整帧所有人脸的识别，替代逐个 numpy 调用链。
+- **文件：** [face_recognizer.py](face_hub/engine/face_recognizer.py)
+
+### FaceDatabase 原子写入
+
+- `save_encodings()` 写入临时文件后原子重命名，防止崩溃导致编码文件损坏。
+- **文件：** [face_database.py](face_hub/engine/face_database.py)
+
+---
+
+## 🐛 修复
+
+- `PhotoClassifier` 聚类中心计算：空 embedding 聚类避免零除错误。
+- 压力测试阈值调整：跟踪器从 100 检测 / 1000 帧降至 50 / 500，数据库从 5000 条降至 1000 条，提升 CI 稳定性。
+- 缺失的 `pytest-timeout` 已添加到开发依赖。
+- 分类器逻辑修复。
+
+---
+
+## 📖 文档更新
+
+- 新增 **Photo Classifier** API 页面（[英文](docs/en/api/classifier.md) / [中文](docs/zh/api/classifier.md)），包含完整类参考。
+- 新增 **Export to Folders** 章节（英文 / 中文）。
+- Types 页面新增 `PhotoFace`、`PhotoGroup`、`PhotoClassificationResult`、`ExportResult` 文档（[英文](docs/en/api/types.md) / [中文](docs/zh/api/types.md)）。
+- MkDocs 首页新增动画科技风 Hero 区域（粒子效果、打字机效果、数字滚动统计、辉光 / 扫描线 / 网格 CSS），采用青色 / 深空灰配色。
+- README 更新照片分类 + 文件夹导出快速入门。
+
+---
+
+## ✅ 测试
+
+- 新增测试模块：
+  - `test_photo_classifier.py` — 照片分类器完整测试（含 stub 检测器）
+  - `test_det_interval.py` — 检测间隔测试
+  - `test_detector_protocol.py` — 检测器协议测试
+  - `test_face_database.py` — 数据库安全与功能测试
+  - `test_face_recognizer.py` — 识别器批量推理测试
+  - `test_face_tracker.py` — 跟踪器参数校验测试
+- **全部测试通过**
+
+---
+
+## 📦 升级指南
+
+### 从 v1.1.0 升级
+
+无需手动操作。所有变更均向后兼容。
+
+### 破坏性变更
+
+无。v1.4.0 完全向后兼容 v1.1.0 API。
+
+---
+
 # v1.1.0 更新日志
 
 > **发布日期：** 2026-07-17

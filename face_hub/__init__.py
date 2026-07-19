@@ -9,7 +9,7 @@ Usage:
     from face_hub.types import UNKNOWN_SENTINEL, PipelineResult, TrackedFace
 """
 
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 __author__ = "AllenDeng"
 
 # When installed as a package, prefer the metadata version (pyproject.toml).
